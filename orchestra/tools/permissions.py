@@ -10,6 +10,8 @@ class PermissionManager:
     def __init__(self):
         # specialist_name -> set of tool_names
         self._permissions: Dict[str, Set[str]] = {}
+        # Sensitive tools that require human approval
+        self._sensitive_tools: Set[str] = set()
 
     def grant(self, specialist: str, tool_name: str):
         if specialist not in self._permissions:
@@ -24,6 +26,14 @@ class PermissionManager:
 
     def has_permission(self, specialist: str, tool_name: str) -> bool:
         return tool_name in self._permissions.get(specialist, set())
+
+    def mark_sensitive(self, tool_name: str):
+        """Mark a tool as requiring human approval before execution."""
+        self._sensitive_tools.add(tool_name)
+        logger.info(f"Marked {tool_name} as sensitive (requires approval)")
+
+    def is_sensitive(self, tool_name: str) -> bool:
+        return tool_name in self._sensitive_tools
 
 # Global permission manager
 permission_manager = PermissionManager()
