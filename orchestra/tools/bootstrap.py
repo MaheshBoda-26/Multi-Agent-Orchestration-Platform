@@ -26,7 +26,7 @@ SENSITIVE_TOOLS = ("code_execute", "http_get", "file_write")
 
 
 def workspace_for_task(task_id: str, root: Optional[str] = None) -> Path:
-    base = Path(root or os.getenv("WORKSPACES_ROOT", DEFAULT_WORKSPACES_ROOT))
+    base = Path(root or os.getenv("WORKSPACES_ROOT") or DEFAULT_WORKSPACES_ROOT)
     path = base / task_id
     path.mkdir(parents=True, exist_ok=True)
     return path

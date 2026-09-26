@@ -6,6 +6,7 @@ so `ainvoke(None, config)` continues from the last completed super-step rather
 than repeating finished work.
 """
 import asyncio
+import functools
 import logging
 import os
 import time
@@ -20,6 +21,8 @@ from graph.build import OrchestraGraph
 from graph.checkpointer import create_checkpointer
 from llm.factory import build_provider
 from migrations import run_migrations
+from tools.bootstrap import build_tool_registry
+from tools.execution import execute_tool
 from worker.celery_app import celery_app
 
 logger = logging.getLogger(__name__)
@@ -71,7 +74,12 @@ async def _run_task_async(task_id: str, description: str) -> None:
             return
 
         ckpt_pool, checkpointer = await create_checkpointer(_database_url())
-        graph = OrchestraGraph(build_provider(), checkpointer=checkpointer)
+        # Every task gets its own jailed workspace, registry and audited executor.
+        registry = build_tool_registry(task_id, search_backend=os.getenv("SEARCH_BACKEND"))
+        tool_executor = functools.partial(execute_tool, registry, pool, task_id=task_id)
+        graph = OrchestraGraph(
+            build_provider(), checkpointer=checkpointer, tool_executor=tool_executor
+        )
         config: RunnableConfig = {"configurable": {"thread_id": task_id}}
 
         await repository.set_task_status(pool, task_uuid, "running")
