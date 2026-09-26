@@ -85,9 +85,23 @@ patterns flagged; specialists carry a standing security policy. The approval
 gates remain authoritative for sensitive actions — the sanitizer is one layer,
 not a guarantee.
 
-**Test gates** (FakeProvider, no network): 140 unit tests, 10
+**Test gates** (FakeProvider, no network): 156 unit tests, 10
 integration/e2e tests against real Postgres + Redis, mypy and ruff clean.
 CI runs all of it (`.github/workflows/ci.yml`).
+
+**Clean-machine verification** (Phase 9): the image build, compose stack,
+API health, demo end-to-end, eval dry-run and all four UI pages were
+exercised the way a stranger would run them; the issues that surfaced are
+fixed and recorded in `tasks/lessons.md`. Re-verify any time with
+`bash scripts/clean_clone_check.sh`.
+
+The judge is validated against 20 hand-labeled samples
+(`evals/judge_samples.jsonl`) via `uv run python -m evals.validate_judge`;
+the ≥ 0.8 agreement gate runs live and skips without a key.
+Live-matrix spend is capped (`--budget-max`, default guidance $40) and
+deduplicated through the `llm_cache` table; the routing experiment
+(full vs cheap-only quality/cost) is part of `evals/results.md`.
+Failure analysis method and live-run instructions: `evals/failures.md`.
 
 ## Durability, HITL and replay
 

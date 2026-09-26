@@ -152,3 +152,20 @@ synchronous interface, and lint/type/CI tooling was configured but empty.
   endpoints; `/dashboard` reads the new `GET /stats/cost` rollup
   (run_metadata totals + approvals grouped by trigger/status). No build step,
   same style as the approval queue.
+- **Phase 9 (Live & Shipped).** Live-matrix spend is guarded twice: identical
+  (model, role, prompt) calls are deduplicated in the `llm_cache` table, and
+  each config carries a Budget priced from routing.yaml that aborts on
+  `--budget-max` (only routing-aware providers charge; fake token counts are
+  meaningless). The judge gate (>= 0.8 agreement on 20 hand-labeled samples
+  in `evals/judge_samples.jsonl`) runs in the CLI and a live test, skipping
+  without a key. The routing experiment (full vs cheap-only) is part of
+  `evals/results.md`; `evals/failures.md` records the analysis method.
+- **Containerized celery needs PYTHONPATH.** The image sets PYTHONPATH=/app
+  because bare `celery -A worker.celery_app` drops the cwd from sys.path
+  after app discovery and autodiscovered tasks then cannot import siblings.
+- **FAKE_PLAN_PATH is per-task via a [HITL-DEMO] marker.** A worker env var
+  that scripts every plan broke mixed demo traffic; the marker is matched
+  first in FakeProvider's insertion-ordered map, so only marked tasks pause.
+- **user_id flows from POST /tasks through initial_state** into graph state —
+  without it every memory landed under "anonymous" and per-user memory was
+  dead code. Found by running the demo against the real deployment.
