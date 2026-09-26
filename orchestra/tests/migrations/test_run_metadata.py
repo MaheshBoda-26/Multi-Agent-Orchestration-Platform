@@ -1,6 +1,4 @@
-import asyncpg
 import pytest
-import asyncio
 
 @pytest.mark.asyncio
 async def test_run_metadata_table_exists(postgres_pool):

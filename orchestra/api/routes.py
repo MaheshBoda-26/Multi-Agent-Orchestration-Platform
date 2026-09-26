@@ -1,6 +1,6 @@
 from typing import Dict, Any, List, Optional
 from pydantic import BaseModel
-from datetime import datetime
+from datetime import datetime, timezone
 import asyncpg
 import json
 
@@ -71,7 +71,7 @@ async def resolve_approval(pool: asyncpg.Pool, approval_id: str, decision: Appro
             UPDATE approvals 
             SET status = $1, resolved_at = $2, resolution = $3
             WHERE id = $4
-        """, decision.action, datetime.utcnow(), json.dumps(decision.model_dump()), approval_id)
+        """, decision.action, datetime.now(timezone.utc), json.dumps(decision.model_dump()), approval_id)
         
         row = await conn.fetchrow("SELECT * FROM approvals WHERE id = $1", approval_id)
         return ApprovalRequest(**dict(row))
