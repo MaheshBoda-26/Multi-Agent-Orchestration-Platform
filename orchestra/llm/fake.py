@@ -73,6 +73,13 @@ class FakeProvider(LLMProvider):
         self.scripted_responses: Dict[str, str] = {}
         self.default_responses: Dict[str, str] = dict(DEFAULT_RESPONSES)
         self.default_response = "This is a fake response from the FakeProvider."
+        # Integration tests script a specific plan through this env var (a
+        # subprocess cannot call set_scripted_response).
+        plan_path = os.getenv("FAKE_PLAN_PATH")
+        if plan_path:
+            self.default_responses["Orchestra Supervisor"] = open(
+                plan_path, encoding="utf-8"
+            ).read()
         # Read by RecordingLLMProvider after complete_structured calls.
         self.last_usage: Optional[LLMResponse] = None
 

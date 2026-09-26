@@ -1,0 +1,27 @@
+# Human-in-the-loop escalation policy (Phase 4 exit criteria).
+#
+# Four levels, exactly as specified: notify (inform), approve_action (one
+# action), approve_plan (whole plan), take_over (human drives).
+# There is deliberately no approval timeout: a paused run waits indefinitely
+# (rules.md error-handling table).
+
+levels:
+  notify:
+    description: "Inform the human of progress; no action required"
+    requires_response: false
+  approve_action:
+    description: "The human must approve, modify or reject a specific proposed action"
+    requires_response: true
+  approve_plan:
+    description: "The human must approve, modify or reject the entire plan"
+    requires_response: true
+  take_over:
+    description: "The human takes direct control; the agent pauses indefinitely"
+    requires_response: true
+
+triggers:
+  low_confidence_plan: approve_plan
+  sensitive_tool_requested: approve_action
+  second_failure: approve_action
+  reviewer_escalate: approve_action
+  user_requested: take_over
