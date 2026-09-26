@@ -1,7 +1,6 @@
-from typing import Dict, Any, List, Optional, Literal
+from typing import Dict, Any, Optional, Literal
 from pydantic import BaseModel
 from langgraph.types import interrupt
-from langgraph.graph import StateGraph
 
 # Escalation levels
 class EscalationLevel(BaseModel):
@@ -45,7 +44,7 @@ ESCALATION_TRIGGERS = {
 class HITLManager:
     """Manages human-in-the-loop interactions using LangGraph interrupts."""
     
-    def __init__(self):
+    def __init__(self) -> None:
         pass
 
     def should_escalate(self, trigger: str) -> str:
@@ -96,8 +95,9 @@ class HITLManager:
         # This is where LangGraph saves state and yields control
         # The human response will be returned when execution resumes
         human_response = interrupt(payload)
-        
-        return human_response
+        if not isinstance(human_response, dict):
+            return {"action": "unknown", "raw_response": human_response}
+        return dict(human_response)
 
 # Global HITL manager
 hitl_manager = HITLManager()

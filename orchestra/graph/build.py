@@ -1,228 +1,284 @@
-import asyncio
-from typing import List, Dict, Any
+import logging
+from typing import Any, Dict, List, Union
+
 from langgraph.graph import StateGraph, END
-from langgraph.constants import Send
-from .state import GraphState, SubtaskResult
-from agents.supervisor import SupervisorAgent, Plan
+from langgraph.types import Send
+
+from agents.supervisor import SupervisorAgent
 from agents.specialists import SpecialistAgent, SPECIALIST_CONFIGS
 from agents.reviewer import ReviewerAgent
-from tools.registry import registry
-from tools.permissions import permission_manager
+from graph.state import GraphState, SubtaskResult
+from graph.validate import validate_plan
+from graph.hitl import hitl_manager
 from llm.provider import LLMProvider
-from graph.hitl import hitl_manager, ESCALATION_TRIGGERS
+
+logger = logging.getLogger(__name__)
+
+# One initial run plus one reviewer-driven retry, per rules.md error handling.
+MAX_SUBTASK_ATTEMPTS = 2
+# Plans below this confidence pause for human approval once HITL is durable.
+LOW_CONFIDENCE_THRESHOLD = 0.6
+
 
 class OrchestraGraph:
-    def __init__(self, llm: LLMProvider):
+    """Supervisor plans, independent subtasks run in parallel, a reviewer gates
+    each output, then a synthesis step writes the final response.
+
+    Flow: supervisor -> dispatch -> (Send execute_subtask xN) -> review -> dispatch
+    ... -> synthesize. ``dispatch`` is the single fan-in point that schedules the
+    next batch, so no two branches can schedule the same subtask twice.
+    """
+
+    def __init__(self, llm: LLMProvider, hitl_enabled: bool = False):
         self.llm = llm
+        # interrupt() needs a checkpointer to pause and resume; that lands with
+        # the durability phase, so nodes only raise for a human when enabled.
+        self.hitl_enabled = hitl_enabled
         self.supervisor = SupervisorAgent(llm)
         self.specialists = {
-            name: SpecialistAgent(config, llm) 
+            name: SpecialistAgent(config, llm)
             for name, config in SPECIALIST_CONFIGS.items()
         }
         self.reviewer = ReviewerAgent(llm, threshold=0.75)
         self.workflow = self._build_graph()
 
-    def _build_graph(self):
+    # ------------------------------------------------------------------ graph
+
+    def _build_graph(self) -> Any:
         builder = StateGraph(GraphState)
 
-        # Nodes
-        builder.add_node("supervisor", self.node_supervisor)
-        builder.add_node("execute_subtask", self.node_execute_subtask)
-        builder.add_node("review", self.node_review)
-        builder.add_node("synthesize", self.node_synthesize)
+        # LangGraph's node generics cannot express our partial-state node
+        # signatures, so registrations go through an Any-typed alias.
+        add_node: Any = builder.add_node
+        add_node("supervisor", self.node_supervisor)
+        add_node("dispatch", self.node_dispatch)
+        add_node("execute_subtask", self.node_execute_subtask)
+        add_node("review", self.node_review)
+        add_node("synthesize", self.node_synthesize)
 
-        # Edges
         builder.set_entry_point("supervisor")
-        
-        # Supervisor -> parallel subtask execution
+        builder.add_edge("supervisor", "dispatch")
         builder.add_conditional_edges(
-            "supervisor",
-            self.route_to_subtasks,
-            {
-                "execute": "execute_subtask",
-                "end": END
-            }
+            "dispatch",
+            self.route_next_subtasks,
+            {"execute_subtask": "execute_subtask", "synthesize": "synthesize"},
         )
-
-        # Subtask -> review
         builder.add_edge("execute_subtask", "review")
-        
-        # Review -> retry or synthesize
-        builder.add_conditional_edges(
-            "review",
-            self.route_after_review,
-            {
-                "retry": "execute_subtask",
-                "synthesize": "synthesize",
-                "escalate": "execute_subtask"  # Will trigger HITL
-            }
-        )
-
+        builder.add_edge("review", "dispatch")
         builder.add_edge("synthesize", END)
 
         return builder.compile()
 
-    async def node_supervisor(self, state: GraphState):
-        plan = await self.supervisor.create_plan(state["task_description"])
-        
-        # Check if plan has low confidence (simulated)
-        # In real implementation, supervisor would return confidence scores
-        # For now, we'll check if it's a complex task
-        if len(plan.tasks) > 3:  # Complex plan triggers approval
-            hitl_response = await hitl_manager.pause_for_approval(
+    # ------------------------------------------------------------- supervisor
+
+    async def node_supervisor(self, state: GraphState) -> Dict[str, Any]:
+        description = state["task_description"]
+        plan = await self.supervisor.create_plan(description)
+
+        errors = validate_plan([t.model_dump() for t in plan.tasks])
+        if errors:
+            logger.warning("Invalid plan (%s); regenerating once", errors)
+            plan = await self.supervisor.create_plan(description, validation_errors=errors)
+            errors = validate_plan([t.model_dump() for t in plan.tasks])
+            if errors:
+                return {
+                    "plan": [],
+                    "shared_context": f"Planning failed validation: {errors}",
+                }
+
+        if self.hitl_enabled and plan.confidence < LOW_CONFIDENCE_THRESHOLD:
+            await hitl_manager.pause_for_approval(
                 state={**state, "task_id": state.get("task_id", "unknown")},
                 trigger="low_confidence_plan",
-                proposed_action=f"Execute plan with {len(plan.tasks)} subtasks"
+                proposed_action=f"Execute plan with {len(plan.tasks)} subtasks",
             )
-            # Handle human response
-            if hitl_response.get("action") == "modify":
-                # Would need to re-plan - simplified for now
-                pass
-        
+
         return {
             "plan": [task.model_dump() for task in plan.tasks],
-            "shared_context": plan.reasoning
+            "shared_context": plan.reasoning,
         }
 
-    def route_to_subtasks(self, state: GraphState):
-        tasks = state.get("plan", [])
-        if not tasks:
-            return "end"
-            
-        # Find ready tasks (no dependencies or all dependencies completed)
-        completed = set(state.get("results", {}).keys())
-        ready_tasks = [
-            t for t in tasks 
-            if not t["dependencies"] or all(d in completed for d in t["dependencies"])
-        ]
-        
-        if not ready_tasks:
-            return "end"
-            
-        return [Send("execute_subtask", t) for t in ready_tasks]
+    # --------------------------------------------------------------- dispatch
 
-    async def node_execute_subtask(self, task_info: Dict[str, Any]):
-        specialist_name = task_info["specialist"]
-        agent = self.specialists.get(specialist_name)
-        
-        if not agent:
-            return {"results": {task_info["id"]: SubtaskResult(
-                subtask_id=task_info["id"], 
-                content="", 
-                status="error", 
-                error=f"Specialist {specialist_name} not found"
-            )}}
+    async def node_dispatch(self, state: GraphState) -> Dict[str, Any]:
+        """Single fan-in point: routing happens in route_next_subtasks."""
+        return {}
 
-        # Check for sensitive tool usage
-        # For this baseline, we'll simulate the check
-        # In real implementation, the agent would declare tools it wants to use
-        sensitive_tool_used = False
-        if specialist_name == "code_executor" and "delete" in task_info.get("description", "").lower():
-            # Simulate sensitive tool detection
-            sensitive_tool_used = True
-            # Check if tool is marked sensitive
-            if permission_manager.is_sensitive("file_write"):
-                hitl_response = await hitl_manager.pause_for_approval(
-                    state={"task_id": task_info.get("task_id", "unknown")},
-                    trigger="sensitive_tool_requested",
-                    proposed_action=f"Write file as part of: {task_info['description']}"
-                )
-                if hitl_response.get("action") == "reject":
-                    return {"results": {task_info["id"]: SubtaskResult(
-                        subtask_id=task_info["id"], 
-                        content="", 
-                        status="error", 
-                        error="Human rejected sensitive action"
-                    )}}
+    def route_next_subtasks(self, state: GraphState) -> Union[List[Send], str]:
+        """Schedule the next batch of ready subtasks, or move to synthesis."""
+        plan = state.get("plan") or []
+        results: Dict[str, SubtaskResult] = state.get("results") or {}
+        feedback: Dict[str, str] = state.get("review_feedback") or {}
 
-        max_retries = 2
-        for attempt in range(max_retries):
-            try:
-                res_content = await agent.run(
-                    task_description=task_info["description"], 
-                    context="Global context"
-                )
-                return {"results": {task_info["id"]: SubtaskResult(
-                    subtask_id=task_info["id"], 
-                    content=res_content,
-                    retry_count=attempt
-                )}}
-            except Exception as e:
-                if attempt == max_retries - 1:
-                    return {"results": {task_info["id"]: SubtaskResult(
-                        subtask_id=task_info["id"], 
-                        content="", 
-                        status="error", 
-                        error=str(e),
-                        retry_count=attempt + 1
-                    )}}
-                await asyncio.sleep(1)
-
-    async def node_review(self, state: GraphState):
-        # Get the most recent result
-        results = state.get("results", {})
-        if not results:
-            return {"results": {}}
-            
-        latest_task_id = list(results.keys())[-1]
-        latest_result = results[latest_task_id]
-        
-        if latest_result.status == "error":
-            return {"results": {}}
-        
-        # Find the task info for this result
-        plan = state.get("plan", [])
-        task_info = next((t for t in plan if t["id"] == latest_task_id), None)
-        
-        if not task_info:
-            return {"results": {}}
-        
-        # Run reviewer
-        review = await self.reviewer.review(
-            task_description=task_info["description"],
-            specialist_output=latest_result.content,
-            specialist_role=task_info["specialist"]
-        )
-        
-        if review.decision == "accept":
-            return {"results": {}}
-        elif review.decision == "retry":
-            # Update result with retry feedback
-            updated_result = latest_result.model_copy(update={
-                "content": latest_result.content + f"\n\n[REVIEWER FEEDBACK]: {review.feedback}\n{review.retry_instructions}",
-                "retry_count": latest_result.retry_count + 1
-            })
-            return {"results": {latest_task_id: updated_result}}
-        else:  # escalate
-            # Trigger HITL for escalation
-            hitl_response = await hitl_manager.pause_for_approval(
-                state={**state, "task_id": state.get("task_id", "unknown")},
-                trigger="reviewer_escalate",
-                proposed_action=f"Reviewer escalated: {review.feedback}"
-            )
-            # Store human decision in state
-            return {"results": {f"{latest_task_id}_hitl": SubtaskResult(
-                subtask_id=f"{latest_task_id}_hitl",
-                content=f"Human decision: {hitl_response.get('action', 'unknown')}",
-                status="success"
-            )}}
-
-    def route_after_review(self, state: GraphState):
-        # This is simplified - in real implementation, we'd track review decisions
-        # For now, always synthesize if there are results
-        results = state.get("results", {})
-        if results:
+        if not plan:
             return "synthesize"
-        return "execute_subtask"
 
-    async def node_synthesize(self, state: GraphState):
-        all_results = state.get("results", {})
-        combined_text = "\n".join([f"Task {k}: {v.content}" for k, v in all_results.items()])
-        
+        # Reviewer asked for another attempt (review never marks retry past the cap).
+        retries = [sid for sid, r in results.items() if r.status == "retry"]
+
+        # New work whose accepted results make its dependencies satisfied.
+        def deps_accepted(task: Dict[str, Any]) -> bool:
+            for dep in task.get("dependencies") or []:
+                dep_result = results.get(dep)
+                if dep_result is None or dep_result.status != "accepted":
+                    return False
+            return True
+
+        ready = [
+            t for t in plan
+            if t["id"] not in results and deps_accepted(t)
+        ]
+
+        sends: List[Send] = []
+        for task in ready:
+            sends.append(Send("execute_subtask", self._execute_payload(state, task)))
+        for sid in retries:
+            task = next((t for t in plan if t["id"] == sid), {})
+            if not task:
+                continue
+            payload = self._execute_payload(state, task)
+            payload["feedback"] = feedback.get(sid)
+            sends.append(Send("execute_subtask", payload))
+
+        if sends:
+            return sends
+
+        # Nothing left to schedule: synthesize with whatever succeeded. A valid
+        # plan with all dependencies satisfied always reaches synthesis here.
+        logger.info("No subtasks left to schedule; synthesizing with %s results", len(results))
+        return "synthesize"
+
+
+    def _execute_payload(self, state: GraphState, task: Dict[str, Any]) -> Dict[str, Any]:
+        return {
+            "subtask": dict(task),
+            "shared_context": state.get("shared_context", ""),
+            "task_id": state.get("task_id", "unknown"),
+        }
+
+    # -------------------------------------------------------------- execution
+
+    async def node_execute_subtask(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        task = payload["subtask"]
+        subtask_id = task["id"]
+        specialist_name = task["specialist"]
+        agent = self.specialists.get(specialist_name)
+
+        if agent is None:
+            return {
+                "results": {subtask_id: SubtaskResult(
+                    subtask_id=subtask_id,
+                    content="",
+                    status="error",
+                    error=f"Specialist {specialist_name} not found",
+                )},
+            }
+
+        feedback = payload.get("feedback")
+        context = payload.get("shared_context", "")
+        if feedback:
+            context = f"{context}\n\nReviewer feedback from the previous attempt:\n{feedback}"
+
+        result = await self._run_specialist(agent, task, context, subtask_id)
+        return {"results": {subtask_id: result}}
+
+    async def _run_specialist(
+        self, agent: SpecialistAgent, task: Dict[str, Any], context: str, subtask_id: str
+    ) -> SubtaskResult:
+        try:
+            content = await agent.run(
+                task_description=task["description"],
+                context=context,
+            )
+            return SubtaskResult(subtask_id=subtask_id, content=content)
+        except Exception as exc:  # tool/LLM failures are typed results, not crashes
+            logger.exception("Specialist %s failed on %s", task["specialist"], subtask_id)
+            return SubtaskResult(
+                subtask_id=subtask_id,
+                content="",
+                status="error",
+                error=str(exc),
+            )
+
+    # ----------------------------------------------------------------- review
+
+    async def node_review(self, state: GraphState) -> Dict[str, Any]:
+        """Review every not-yet-reviewed result from the batch that just ran.
+
+        Runs once per super-step because every execute branch fans into it, so
+        parallel results are reviewed together against their own subtasks.
+        """
+        plan = state.get("plan") or []
+        results: Dict[str, SubtaskResult] = state.get("results") or {}
+        attempts: Dict[str, int] = state.get("attempts") or {}
+
+        updates: Dict[str, SubtaskResult] = {}
+        feedback: Dict[str, str] = {}
+        attempt_updates: Dict[str, int] = {}
+
+        for task in plan:
+            subtask_id = task["id"]
+            result = results.get(subtask_id)
+            if result is None or result.status != "success":
+                continue  # accepted/retry/escalate already decided, or hard error
+
+            review = await self.reviewer.review(
+                task_description=task["description"],
+                specialist_output=result.content,
+                specialist_role=task["specialist"],
+            )
+            feedback[subtask_id] = review.feedback
+            attempts_made = attempts.get(subtask_id, 0) + 1
+            attempt_updates[subtask_id] = attempts_made
+
+            if review.decision == "accept":
+                status = "accepted"
+            elif review.decision == "retry":
+                status = "retry" if attempts_made < MAX_SUBTASK_ATTEMPTS else "escalate"
+            else:
+                status = "escalate"
+
+            updates[subtask_id] = result.model_copy(update={
+                "status": status,
+                "retry_count": attempts_made,
+            })
+            logger.info(
+                "Review of %s: %s (overall=%.2f)",
+                subtask_id, status, review.scores.overall(),
+            )
+
+        if not updates and not feedback:
+            return {}
+        return {
+            "results": updates,
+            "review_feedback": feedback,
+            "attempts": attempt_updates,
+        }
+
+    # -------------------------------------------------------------- synthesis
+
+    async def node_synthesize(self, state: GraphState) -> Dict[str, Any]:
+        results: Dict[str, SubtaskResult] = state.get("results") or {}
+
+        usable = {sid: r for sid, r in results.items() if r.status == "accepted"}
+        unusable = {sid: r for sid, r in results.items() if r.status != "accepted"}
+
+        parts = [f"### Subtask {sid}\n{r.content}" for sid, r in usable.items()]
+        if not parts:
+            parts = [f"### Subtask {sid}\n{r.content}" for sid, r in results.items() if r.content]
+        combined = "\n\n".join(parts) or "No usable subtask output was produced."
+
+        context = combined
+        if unusable:
+            notes = ", ".join(
+                f"{sid} ({r.status}{': ' + r.error if r.error else ''})"
+                for sid, r in unusable.items()
+            )
+            context += f"\n\nNote: these subtasks did not complete successfully: {notes}"
+
         writer = self.specialists["writer"]
         final = await writer.run(
             task_description="Synthesize the final response from subtask results.",
-            context=combined_text
+            context=context,
         )
-        
         return {"final_response": final}
