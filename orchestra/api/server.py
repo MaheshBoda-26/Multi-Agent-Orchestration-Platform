@@ -8,6 +8,7 @@ from typing import Any, Dict, List, Optional
 import asyncpg
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse, StreamingResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from api import repository
@@ -22,6 +23,9 @@ from worker.tasks import run_task, resume_task
 logger = logging.getLogger(__name__)
 
 app = FastAPI(title="Orchestra Multi-Agent Orchestration Platform")
+
+# Approval page assets (approval.js) served from web/static.
+app.mount("/static", StaticFiles(directory="web/static"), name="static")
 
 # Database pool (created on startup)
 pool: Optional[asyncpg.Pool] = None
@@ -211,25 +215,6 @@ class ClarifyQuestion(BaseModel):
 @app.get("/approvals/pending", response_model=List[ApprovalRequest])
 async def list_pending_approvals():
     return await get_pending_approvals(pool)
-
-
-# NOTE: declared before /approvals/{approval_id} so the literal path wins the
-# route match; otherwise the UI page 404s as an unknown approval id.
-@app.get("/approvals/ui", response_class=HTMLResponse)
-async def approval_ui():
-    with open("web/approval_page.html") as f:
-        return HTMLResponse(content=f.read())
-
-
-@app.get("/approvals/{approval_id}", response_model=ApprovalRequest)
-async def get_approval_details(approval_id: str):
-    approval = await get_approval(pool, approval_id)
-    if not approval:
-        raise HTTPException(status_code=404, detail="Approval not found")
-    return approval
-
-
-# --- Approval endpoints -----------------------------------------------------
 
 
 # NOTE: declared before /approvals/{approval_id} so the literal path wins the
