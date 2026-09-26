@@ -1,0 +1,57 @@
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; }
+.container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; }
+h1 { color: #1a1a1a; font-size: 28px; }
+.header-controls { display: flex; align-items: center; gap: 16px; }
+.muted { color: #999; font-size: 13px; }
+.refresh-btn { padding: 10px 20px; background: #0066cc; color: white; border: none; border-radius: 6px; cursor: pointer; }
+.refresh-btn:hover { background: #0052a3; }
+
+.approval-card { background: white; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); margin-bottom: 20px; overflow: hidden; }
+.card-header { padding: 16px 20px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center; }
+.escalation-badge { padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; text-transform: uppercase; }
+.escalation-badge.notify { background: #e3f2fd; color: #1565c0; }
+.escalation-badge.approve_action { background: #fff3e0; color: #e65100; }
+.escalation-badge.approve_plan { background: #fce4ec; color: #c2185b; }
+.escalation-badge.take_over { background: #fde0e0; color: #b71c1c; }
+
+.card-body { padding: 20px; }
+.detail-row { display: flex; margin-bottom: 12px; }
+.detail-label { width: 150px; font-weight: 500; color: #666; }
+.detail-value { flex: 1; color: #333; }
+.context-box { background: #fafafa; border: 1px solid #eee; border-radius: 6px; padding: 16px; margin-top: 16px; max-height: 300px; overflow: auto; }
+.context-box pre { white-space: pre-wrap; font-family: monospace; font-size: 13px; color: #444; }
+
+.actions { display: flex; gap: 12px; margin-top: 20px; padding-top: 20px; border-top: 1px solid #eee; flex-wrap: wrap; }
+.btn { padding: 10px 24px; border-radius: 6px; font-weight: 500; cursor: pointer; border: none; font-size: 14px; }
+.btn:disabled { opacity: 0.6; cursor: wait; }
+.btn-primary { background: #0066cc; color: white; }
+.btn-primary:hover { background: #0052a3; }
+.btn-danger { background: #dc3545; color: white; }
+.btn-danger:hover { background: #c82333; }
+.btn-secondary { background: #6c757d; color: white; }
+.btn-secondary:hover { background: #5a6268; }
+.btn-success { background: #28a745; color: white; }
+.btn-success:hover { background: #218838; }
+
+.mod-plan { display: none; margin-top: 16px; padding: 16px; background: #f8f9fa; border-radius: 6px; }
+.mod-plan textarea { width: 100%; min-height: 160px; padding: 12px; border: 1px solid #ddd; border-radius: 4px; font-family: monospace; font-size: 13px; }
+.mod-plan .form-actions { display: flex; gap: 12px; margin-top: 12px; }
+.mod-plan .hint { color: #888; font-size: 12px; margin-top: 6px; }
+
+.clarify-log { display: none; margin-top: 16px; background: #f8f9fa; border-radius: 6px; padding: 16px; }
+.clarify-log .entry { margin-bottom: 12px; }
+.clarify-log .q { font-weight: 600; color: #1a1a1a; }
+.clarify-log .a { color: #444; margin-left: 16px; white-space: pre-wrap; }
+.clarify-form { display: flex; gap: 12px; margin-top: 8px; }
+.clarify-form textarea { flex: 1; min-height: 60px; padding: 12px; border: 1px solid #ddd; border-radius: 4px; font-family: inherit; }
+
+.status-note { margin-top: 12px; font-size: 13px; color: #28a745; }
+.error-note { margin-top: 12px; font-size: 13px; color: #dc3545; }
+
+.empty-state { text-align: center; padding: 60px 20px; color: #999; }
+.empty-state h3 { margin-bottom: 8px; color: #666; }
+
+.task-link { color: #0066cc; text-decoration: none; }
+.task-link:hover { text-decoration: underline; }

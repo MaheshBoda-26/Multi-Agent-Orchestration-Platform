@@ -95,6 +95,22 @@ def stop_worker(proc: Optional[subprocess.Popen]) -> None:
         proc.wait(timeout=10)
 
 
+async def wait_for_status(
+    pool: asyncpg.Pool,
+    task_id: uuid.UUID,
+    status: str,
+    timeout: float = 90.0,
+) -> bool:
+    """Wait until the task row reaches one specific status."""
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        current = await pool.fetchval("SELECT status FROM tasks WHERE id = $1", task_id)
+        if current == status:
+            return True
+        time.sleep(0.5)
+    return False
+
+
 async def wait_for_terminal(
     pool: asyncpg.Pool, task_id: uuid.UUID, timeout: float = 90.0
 ) -> Optional[str]:

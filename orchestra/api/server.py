@@ -17,6 +17,7 @@ from api.routes import (
     get_approval, resolve_approval, get_task_approvals,
     ApprovalRequest, ApprovalDecision,
 )
+from llm.fake import FakeProvider
 from migrations import run_migrations
 from worker.tasks import run_task, resume_task
 
@@ -293,7 +294,11 @@ async def _clarify_from_checkpoint(approval: ApprovalRequest, question: str) -> 
     if snapshot is None:
         raise LookupError("No checkpoint exists for this task")
 
-    state = snapshot.values or {}
+    # CheckpointTuple exposes the channel values via ``state`` on this
+    # langgraph version; fall back defensively for other versions.
+    state: Dict[str, Any] = getattr(snapshot, "state", None) or getattr(
+        snapshot, "values", None
+    ) or {}
     summary = {
         "task_description": state.get("task_description"),
         "plan": state.get("plan"),
