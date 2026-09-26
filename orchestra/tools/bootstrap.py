@@ -10,9 +10,9 @@ from typing import List, Optional
 
 from tools.builtin.file_tools import FileReadTool, FileWriteTool
 from tools.builtin.sandbox import CodeExecutionTool
-from tools.builtin.web_tools import HttpCallTool, WebSearchTool
+from tools.builtin.web_tools import HttpCallTool, TavilySearchTool, WebSearchTool
 from tools.permissions import permission_manager
-from tools.registry import ToolRegistry
+from tools.registry import BaseTool, ToolRegistry
 
 DEFAULT_WORKSPACES_ROOT = "./workspaces"
 DEFAULT_HTTP_ALLOWLIST = [
@@ -23,6 +23,14 @@ DEFAULT_HTTP_ALLOWLIST = [
 ]
 # Tools that mutate the world or leave the machine need human approval.
 SENSITIVE_TOOLS = ("code_execute", "http_get", "file_write")
+
+
+def _search_tool(search_backend: Optional[str]) -> BaseTool:
+    """Tavily when a key (or explicit backend) exists, simulated otherwise."""
+    backend = (search_backend or os.getenv("SEARCH_BACKEND") or "").lower()
+    if backend == "tavily" or (not backend and os.getenv("TAVILY_API_KEY")):
+        return TavilySearchTool()
+    return WebSearchTool()
 
 
 def workspace_for_task(task_id: str, root: Optional[str] = None) -> Path:
@@ -47,7 +55,7 @@ def build_tool_registry(
     registry.register(FileWriteTool(str(workspace)))
     registry.register(CodeExecutionTool())
     registry.register(HttpCallTool(allowed_domains or DEFAULT_HTTP_ALLOWLIST))
-    registry.register(WebSearchTool())
+    registry.register(_search_tool(search_backend))
 
     for name in SENSITIVE_TOOLS:
         permission_manager.mark_sensitive(name)

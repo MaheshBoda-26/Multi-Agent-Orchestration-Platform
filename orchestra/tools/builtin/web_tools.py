@@ -1,4 +1,6 @@
+import asyncio
 import ipaddress
+import os
 import socket
 from typing import Any, List, Optional
 from urllib.parse import urlparse
@@ -46,6 +48,53 @@ class WebSearchTool(BaseTool):
         return ToolResult(
             content=f"Search results for '{query}':\n1. [Result 1] Orchestra is a multi-agent platform.\n2. [Result 2] AI agents are evolving rapidly."
         )
+
+
+class TavilySearchTool(BaseTool):
+    """Real web search through Tavily (the approved search library).
+
+    Fails with a clear error instead of silently returning nothing when no
+    API key is configured; bootstrap falls back to the simulated tool only
+    when no key exists.
+    """
+
+    def __init__(self, api_key: Optional[str] = None) -> None:
+        schema = ToolSchema(
+            name="web_search",
+            description="Search the web for information.",
+            parameters={"query": {"type": "string", "description": "Search query"}},
+            allowed_specialists=["researcher", "data_analyst"],
+        )
+        super().__init__(schema)
+        self.api_key = api_key or os.getenv("TAVILY_API_KEY")
+
+    async def run(self, query: str = "", **kwargs: Any) -> ToolResult:
+        if not self.api_key:
+            return ToolResult(
+                content="", status="error",
+                error="search not configured: set TAVILY_API_KEY",
+            )
+        try:
+            from tavily import TavilyClient
+        except ImportError:
+            return ToolResult(
+                content="", status="error", error="tavily-python is not installed"
+            )
+
+        client = TavilyClient(api_key=self.api_key)
+        try:
+            response = await asyncio.to_thread(client.search, query, max_results=5)
+        except Exception as exc:
+            return ToolResult(content="", status="error", error=f"search failed: {exc}")
+
+        results = (response or {}).get("results", [])
+        if not results:
+            return ToolResult(content=f"No results for '{query}'.")
+        formatted = "\n\n".join(
+            f"{r.get('title', 'Untitled')} — {r.get('url', '')}\n{r.get('content', '')}"
+            for r in results
+        )
+        return ToolResult(content=f"Search results:\n\n{formatted}")
 
 
 class HttpCallTool(BaseTool):
