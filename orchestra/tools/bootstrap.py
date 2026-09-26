@@ -54,7 +54,7 @@ def build_tool_registry(
 
     registry.register(FileReadTool(str(workspace)))
     registry.register(FileWriteTool(str(workspace)))
-    registry.register(CodeExecutionTool())
+    registry.register(CodeExecutionTool(workspace=str(workspace)))
     registry.register(HttpCallTool(allowed_domains or DEFAULT_HTTP_ALLOWLIST))
     registry.register(_search_tool(search_backend))
     registry.register(ReadOnlySQLTool())

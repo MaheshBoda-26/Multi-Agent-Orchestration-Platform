@@ -55,6 +55,7 @@ services:
       REDIS_URL: redis://redis:6379/0
       LLM_PROVIDER: ${LLM_PROVIDER:-fake}
       WORKSPACES_ROOT: /app/workspaces
+      ORCHESTRA_SANDBOX_IMAGE: python:3.14-slim
     depends_on:
       postgres:
         condition: service_healthy
@@ -62,6 +63,9 @@ services:
         condition: service_healthy
     volumes:
       - .:/app
+      # Dev only: sandbox containers are started through the host daemon.
+      # Production uses a restricted socket proxy, never the raw socket.
+      - /var/run/docker.sock:/var/run/docker.sock
     # Threads pool: Celery's default forked pool is broken on Python 3.14
     # (billiard fast_trace_task unpack error), and the graph work is async I/O.
     command: ["celery", "-A", "worker.celery_app", "worker", "--loglevel=info", "--pool=threads", "--concurrency=4"]
