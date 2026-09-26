@@ -39,6 +39,7 @@ async def complete_run(
     cost_usd: float = 0.0,
     latency_ms: int = 0,
     model_breakdown: Optional[Dict[str, Any]] = None,
+    memory_ids_used: Optional[list] = None,
 ) -> None:
     async with pool.acquire() as conn:
         await conn.execute(
@@ -50,11 +51,13 @@ async def complete_run(
                 total_cost_usd = $4,
                 latency_ms = $5,
                 model_breakdown = $6,
+                memory_ids_used = $7,
                 completed_at = NOW()
             WHERE run_id = $1
             """,
             run_id, prompt_tokens, completion_tokens, cost_usd, latency_ms,
             json.dumps(model_breakdown or {}),
+            json.dumps(memory_ids_used or []),
         )
 
 

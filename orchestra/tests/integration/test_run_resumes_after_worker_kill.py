@@ -32,9 +32,10 @@ pytestmark = pytest.mark.integration
 FIRST_SUBTASK = "Task: Gather information for the request"
 SECOND_SUBTASK = "Task: Write up the final answer"
 
-# FakeProvider calls in order: 1 supervisor plan, 2 first specialist,
-# 3 first reviewer -> kill here, after the first execute super-step checkpointed.
-KILL_AFTER_CALLS = 3
+# FakeProvider calls in order: 1 memory retrieval, 2 supervisor plan,
+# 3 first specialist, 4 first reviewer -> kill here, after the first execute
+# super-step checkpointed (memory retrieval happens inside supervisor.plan).
+KILL_AFTER_CALLS = 4
 
 
 @pytest.mark.asyncio

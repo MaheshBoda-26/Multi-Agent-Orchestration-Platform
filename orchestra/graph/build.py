@@ -44,12 +44,18 @@ class OrchestraGraph:
         hitl_enabled: Optional[bool] = None,
         checkpointer: Any = None,
         tool_executor: Any = None,
+        memory_retriever: Any = None,
+        memory_extractor: Any = None,
     ):
         self.llm = llm
         self.checkpointer = checkpointer
         # Async callable(subtask_id=, specialist=, tool_name=, arguments=,
         # approved_signature=) -> ToolResult, provided by the worker.
         self.tool_executor = tool_executor
+        # Optional long-term memory (Phase 5): retriever injects past lessons
+        # into planning; extractor stores one lesson after synthesis.
+        self.memory_retriever = memory_retriever
+        self.memory_extractor = memory_extractor
         # interrupt() needs a checkpointer to pause and resume. Default to on
         # whenever one is attached; callers can still force it off for tests.
         self.hitl_enabled = bool(checkpointer) if hitl_enabled is None else hitl_enabled
@@ -179,7 +185,29 @@ class OrchestraGraph:
     async def node_supervisor(self, state: GraphState) -> Dict[str, Any]:
         description = state["task_description"]
         with span("supervisor.plan", task_id=state.get("task_id")):
-            plan = await self.supervisor.create_plan(description)
+            memory_context = ""
+            memory_ids: List[int] = []
+            if self.memory_retriever is not None:
+                with span("memory.retrieve", task_id=state.get("task_id")):
+                    context = await self.memory_retriever.retrieve(
+                        state.get("user_id") or "anonymous", description
+                    )
+                    if context.relevant_past_tasks:
+                        memory_context = (
+                            "Lessons from the user's past tasks:\n"
+                            + "\n".join(
+                                f"- {task['content']}" for task in context.relevant_past_tasks
+                            )
+                            + f"\nSuggested approach: {context.suggested_approach}"
+                        )
+                        memory_ids = [
+                            task["memory_id"] for task in context.relevant_past_tasks
+                        ]
+                        logger.info(
+                            "Planning with %s retrieved memories", len(memory_ids)
+                        )
+
+            plan = await self.supervisor.create_plan(description, context=memory_context)
 
             errors = validate_plan([t.model_dump() for t in plan.tasks])
             if errors:
@@ -196,6 +224,7 @@ class OrchestraGraph:
             "plan": [task.model_dump() for task in plan.tasks],
             "plan_confidence": plan.confidence,
             "shared_context": plan.reasoning,
+            "memory_ids_used": memory_ids,
         }
 
     # --------------------------------------------------------- plan approval
@@ -484,4 +513,19 @@ class OrchestraGraph:
                 task_description="Synthesize the final response from subtask results.",
                 context=context,
             )
+
+        # Post-completion extraction: one lesson per successful run (Phase 5).
+        if self.memory_extractor is not None:
+            try:
+                with span("memory.extract", task_id=state.get("task_id")):
+                    await self.memory_extractor.extract(
+                        user_id=state.get("user_id") or "anonymous",
+                        task_id=state.get("task_id") or "unknown",
+                        request=state.get("task_description") or "",
+                        results=[r.content for r in results.values() if r.content],
+                        final_response=final or "",
+                    )
+            except Exception:  # noqa: BLE001 - memory must never fail a run
+                logger.exception("Memory extraction failed; continuing without it")
+
         return {"final_response": final}

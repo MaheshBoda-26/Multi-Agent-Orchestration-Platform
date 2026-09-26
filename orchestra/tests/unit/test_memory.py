@@ -1,78 +1,138 @@
+"""Memory on pgvector: extraction stores, retrieval scopes per user,
+deletion removes everything, similar text ranks first with FakeEmbedding."""
+import uuid
+
 import pytest
-from unittest.mock import MagicMock, AsyncMock
-from memory.store import MemoryStore, MemoryEntry
-from memory.extract import MemoryExtractor
-from memory.retrieve import MemoryRetriever
+
+from llm.embeddings import FakeEmbedding
+from memory.retrieve import MemoryExtractor, MemoryRetriever
+from memory.store import (
+    delete_user_memories,
+    list_user_memories,
+    save_memory,
+    search_memories,
+)
 from llm.fake import FakeProvider
 
-@pytest.fixture
-def mock_pool():
-    pool = MagicMock()
-    conn = AsyncMock()
-    # Mock Postgres RETURNING id
-    conn.fetchrow = AsyncMock(return_value={'id': 1})
-    conn.execute = AsyncMock()
 
-    # pool.acquire() must behave like asyncpg's async context manager
-    acquire_cm = MagicMock()
-    acquire_cm.__aenter__ = AsyncMock(return_value=conn)
-    acquire_cm.__aexit__ = AsyncMock(return_value=False)
-    pool.acquire = MagicMock(return_value=acquire_cm)
-    return pool
+_TEST_USERS = tuple(f"mem-user-{uuid.uuid4()}" for _ in range(7))
 
-@pytest.fixture
-def mock_chroma():
-    chroma = MagicMock()
-    collection = MagicMock()
-    chroma.get_or_create_collection.return_value = collection
-    return chroma
+
+def _users():
+    """Unique per-run user ids; the table is truncated in the module fixture."""
+    return dict(zip(
+        ("u1", "ua", "ub", "udel", "ux", "ur", "unone"), _TEST_USERS,
+        strict=True,
+    ))
+
 
 @pytest.mark.asyncio
-async def test_memory_store_save(mock_pool, mock_chroma):
-    store = MemoryStore(mock_pool, mock_chroma)
-    entry = MemoryEntry(
-        user_id="user1",
-        task_id="task1",
-        request="test req",
-        approach="test app",
-        tools_used=["tool1"],
-        outcome="success",
-        facts=["fact1"],
-        embedding=[0.1, 0.2]
+async def test_save_and_search_roundtrip(postgres_pool):
+    users = _users()
+    embeddings = FakeEmbedding()
+    memory_id = await save_memory(
+        postgres_pool, embeddings,
+        user_id=users["u1"],
+        content="Compare vector databases using web search then validate with code.",
+        source_task_id="task-1",
     )
-    
-    saved = await store.save_memory(entry)
-    assert saved.id == 1
-    mock_pool.acquire.assert_called()
-    mock_chroma.get_or_create_collection.assert_called_with("orchestra_memories")
+    assert memory_id > 0
+
+    hits = await search_memories(
+        postgres_pool, embeddings,
+        user_id=users["u1"],
+        query="Compare vector databases using web search then validate with code.",
+    )
+    assert hits, "identical text must retrieve the stored memory"
+    assert hits[0].id == memory_id
+    assert hits[0].similarity > 0.99
+    assert hits[0].access_count == 1, "retrieval bumps access_count"
+
 
 @pytest.mark.asyncio
-async def test_memory_extraction(mock_pool, mock_chroma):
+async def test_search_is_scoped_per_user(postgres_pool):
+    users = _users()
+    embeddings = FakeEmbedding()
+    await save_memory(
+        postgres_pool, embeddings,
+        user_id=users["ua"], content="Financial quarterly report analysis.",
+    )
+    await save_memory(
+        postgres_pool, embeddings,
+        user_id=users["ub"], content="Quarterly report analysis for finance.",
+    )
+
+    hits_a = await search_memories(
+        postgres_pool, embeddings, user_id=users["ua"],
+        query="Quarterly report analysis for finance.",
+    )
+    assert all(h.user_id == users["ua"] for h in hits_a)
+    assert hits_a and hits_a[0].content.startswith("Financial quarterly")
+
+
+@pytest.mark.asyncio
+async def test_delete_user_memories_removes_everything(postgres_pool):
+    users = _users()
+    embeddings = FakeEmbedding()
+    for i in range(3):
+        await save_memory(
+            postgres_pool, embeddings,
+            user_id=users["udel"], content=f"Lesson number {i} about deploy pipelines.",
+        )
+    assert len(await list_user_memories(postgres_pool, users["udel"])) == 3
+
+    deleted = await delete_user_memories(postgres_pool, users["udel"])
+    assert deleted == 3
+    assert await list_user_memories(postgres_pool, users["udel"]) == []
+    # The vector rows are gone too: nothing retrieves.
+    hits = await search_memories(
+        postgres_pool, embeddings, user_id=users["udel"],
+        query="Lesson number 0 about deploy pipelines.",
+    )
+    assert hits == []
+
+
+@pytest.mark.asyncio
+async def test_extractor_stores_one_lesson(postgres_pool):
+    users = _users()
     provider = FakeProvider()
-    extractor = MemoryExtractor(provider)
-    
-    # Script the extraction response
-    provider.set_scripted_response(
-        "extraction",
-        '{"approach": "Search and summarize", "tools_used": ["web_search"], "outcome": "Success", "facts": ["Fact A"], "preferences": ["None"]}'
+    extractor = MemoryExtractor(provider, postgres_pool, FakeEmbedding())
+
+    record = await extractor.extract(
+        user_id=users["ux"], task_id="task-x",
+        request="req", results=["res1"], final_response="final",
     )
-    
-    # The prompt sent to LLM contains the word "extraction" in the instructions
-    entry = await extractor.extract(
-        user_id="u1", task_id="t1", 
-        request="req", results=["res1"], final_response="final"
-    )
-    
-    assert entry.approach == "Search and summarize"
-    assert "web_search" in entry.tools_used
-    assert entry.outcome == "Success"
+    assert record.id > 0
+    stored = await list_user_memories(postgres_pool, users["ux"])
+    assert len(stored) == 1
+    assert "Approach:" in stored[0].content
+    assert stored[0].source_task_id == "task-x"
+
 
 @pytest.mark.asyncio
-async def test_memory_retrieval_empty(mock_pool, mock_chroma):
+async def test_retriever_surfaces_past_lessons(postgres_pool):
+    users = _users()
+    embeddings = FakeEmbedding()
     provider = FakeProvider()
-    store = MemoryStore(mock_pool, mock_chroma)
-    retriever = MemoryRetriever(store, provider)
-    
-    context = await retriever.retrieve("user1", "some request")
+    await save_memory(
+        postgres_pool, embeddings,
+        user_id=users["ur"],
+        content="Research pipeline: web_search then writer polish worked well.",
+    )
+    retriever = MemoryRetriever(provider, postgres_pool, embeddings)
+
+    context = await retriever.retrieve(
+        users["ur"], "Research pipeline: web_search then writer polish."
+    )
+    assert context.relevant_past_tasks, "similar request must surface the lesson"
+    assert context.suggested_approach
+    assert all("memory_id" in task for task in context.relevant_past_tasks)
+
+
+@pytest.mark.asyncio
+async def test_retriever_empty_state(postgres_pool):
+    users = _users()
+    retriever = MemoryRetriever(FakeProvider(), postgres_pool, FakeEmbedding())
+    context = await retriever.retrieve(users["unone"], "anything at all")
     assert context.relevant_past_tasks == []
     assert "No relevant past tasks" in context.suggested_approach

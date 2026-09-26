@@ -324,6 +324,35 @@ async def get_task_approvals_endpoint(task_id: str):
     return await get_task_approvals(pool, task_id)
 
 
+# --- Memory endpoints (Phase 5) ---------------------------------------------
+
+@app.get("/users/{user_id}/memories")
+async def list_memories(user_id: str) -> Dict[str, Any]:
+    """A user's stored lessons, newest first."""
+    from memory.store import list_user_memories
+
+    records = await list_user_memories(_db_pool(), user_id)
+    return {
+        "user_id": user_id,
+        "memories": [record.model_dump(mode="json") for record in records],
+    }
+
+
+@app.delete("/users/{user_id}/memories")
+async def delete_memories(user_id: str) -> Dict[str, Any]:
+    """Right-to-erasure: removes every vector row and metadata for a user."""
+    from memory.store import delete_user_memories
+
+    deleted = await delete_user_memories(_db_pool(), user_id)
+    return {"user_id": user_id, "deleted": deleted}
+
+
+@app.get("/memory/ui", response_class=HTMLResponse)
+async def memory_ui():
+    with open("web/memory.html") as f:
+        return HTMLResponse(content=f.read())
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)

@@ -8,6 +8,7 @@ roles:
   extractor: "openai/gpt-4o-mini"
   judge: "openai/gpt-4o-mini"
   cheap: "meta-llama/llama-3.3-70b-instruct"
+  embedding: "openai/text-embedding-3-small"
 
 # USD per 1M tokens: [prompt, completion]. Used to price runs for cost tracking
 # and the eval harness; keep in sync with OpenRouter's published prices.
@@ -15,4 +16,5 @@ costs:
   "anthropic/claude-3.5-sonnet": [3.0, 15.0]
   "openai/gpt-4o-mini": [0.15, 0.60]
   "meta-llama/llama-3.3-70b-instruct": [0.23, 0.40]
+  "openai/text-embedding-3-small": [0.02, 0.0]
   default: [0.50, 1.50]

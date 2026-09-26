@@ -20,6 +20,8 @@ class Plan(BaseModel):
         default=1.0, ge=0.0, le=1.0,
         description="Supervisor's confidence that this plan solves the task",
     )
+    # Memory ids the plan actually leaned on (Phase 6 attribution metric).
+    memory_ids_used: List[int] = Field(default_factory=list)
 
 
 class SupervisorAgent:

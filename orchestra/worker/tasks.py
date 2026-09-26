@@ -26,8 +26,11 @@ from api import repository, run_metadata
 from api.routes import record_interrupt_approvals
 from graph.build import OrchestraGraph
 from graph.checkpointer import create_checkpointer
+from llm.embeddings import build_embedding_provider
 from llm.factory import build_provider
 from llm.recording import RecordingLLMProvider, RunRecorder
+from memory.extract import MemoryExtractor
+from memory.retrieve import MemoryRetriever
 from migrations import run_migrations
 from observability.context import set_current_task_id
 from observability.setup import configure_tracing, flush_tracing
@@ -181,7 +184,11 @@ async def _run_graph(
         recorder = RunRecorder()
         provider = RecordingLLMProvider(build_provider(), recorder)
         graph = OrchestraGraph(
-            provider, checkpointer=checkpointer, tool_executor=tool_executor
+            provider,
+            checkpointer=checkpointer,
+            tool_executor=tool_executor,
+            memory_retriever=MemoryRetriever(provider, pool, build_embedding_provider()),
+            memory_extractor=MemoryExtractor(provider, pool, build_embedding_provider()),
         )
         config: RunnableConfig = {"configurable": {"thread_id": str(task_uuid)}}
 
@@ -221,6 +228,8 @@ async def _run_graph(
         if plan:
             await repository.save_task_plan(pool, task_uuid, plan)
 
+        memory_ids = final_state.get("memory_ids_used") or []
+
         results: Dict[str, Any] = final_state.get("results") or {}
         await repository.complete_task(pool, task_uuid, {
             "final_response": final_state.get("final_response"),
@@ -233,6 +242,7 @@ async def _run_graph(
             cost_usd=recorder.cost_usd,
             latency_ms=int((time.monotonic() - started) * 1000),
             model_breakdown=recorder.model_breakdown,
+            memory_ids_used=memory_ids,
         )
         logger.info("Task %s completed in %.2fs", task_uuid, time.monotonic() - started)
     finally:
