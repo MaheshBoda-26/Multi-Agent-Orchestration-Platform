@@ -1,0 +1,7 @@
+name: no-hitl
+reviewer: true
+parallel: true
+max_active_subtasks: 4
+memory: true
+hitl: false
+routing: default

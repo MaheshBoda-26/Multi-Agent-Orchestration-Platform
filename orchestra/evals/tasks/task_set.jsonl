@@ -1,0 +1,100 @@
+{"id":"research-001","family":"research","instruction":"Compare vector databases and write a two-paragraph recommendation.","must_contain":[],"min_chars":30,"repeats_family":false}
+{"id":"research-002","family":"research","instruction":"Compare retries with backoff and write a two-paragraph recommendation.","must_contain":[],"min_chars":30,"repeats_family":false}
+{"id":"research-003","family":"research","instruction":"Compare cache invalidation and write a two-paragraph recommendation.","must_contain":[],"min_chars":30,"repeats_family":false}
+{"id":"research-004","family":"research","instruction":"Compare feature flags and write a two-paragraph recommendation.","must_contain":[],"min_chars":30,"repeats_family":false}
+{"id":"research-005","family":"research","instruction":"Compare API rate limits and write a two-paragraph recommendation.","must_contain":[],"min_chars":30,"repeats_family":false}
+{"id":"research-006","family":"research","instruction":"Compare data migrations and write a two-paragraph recommendation.","must_contain":[],"min_chars":30,"repeats_family":false}
+{"id":"research-007","family":"research","instruction":"Compare blue-green deploys and write a two-paragraph recommendation.","must_contain":[],"min_chars":30,"repeats_family":false}
+{"id":"research-008","family":"research","instruction":"Compare observability dashboards and write a two-paragraph recommendation.","must_contain":[],"min_chars":30,"repeats_family":true}
+{"id":"research-009","family":"research","instruction":"Compare prompt injection and write a two-paragraph recommendation.","must_contain":[],"min_chars":30,"repeats_family":true}
+{"id":"research-010","family":"research","instruction":"Compare SQL query planners and write a two-paragraph recommendation.","must_contain":[],"min_chars":30,"repeats_family":true}
+{"id":"research-011","family":"research","instruction":"Summarize the current state of vector databases with three key facts.","must_contain":[],"min_chars":30,"repeats_family":true}
+{"id":"research-012","family":"research","instruction":"Summarize the current state of retries with backoff with three key facts.","must_contain":[],"min_chars":30,"repeats_family":true}
+{"id":"research-013","family":"research","instruction":"Summarize the current state of cache invalidation with three key facts.","must_contain":[],"min_chars":30,"repeats_family":true}
+{"id":"research-014","family":"research","instruction":"Summarize the current state of feature flags with three key facts.","must_contain":[],"min_chars":30,"repeats_family":true}
+{"id":"research-015","family":"research","instruction":"Summarize the current state of API rate limits with three key facts.","must_contain":[],"min_chars":30,"repeats_family":true}
+{"id":"research-016","family":"research","instruction":"Summarize the current state of data migrations with three key facts.","must_contain":[],"min_chars":30,"repeats_family":true}
+{"id":"research-017","family":"research","instruction":"Summarize the current state of blue-green deploys with three key facts.","must_contain":[],"min_chars":30,"repeats_family":true}
+{"id":"research-018","family":"research","instruction":"Summarize the current state of observability dashboards with three key facts.","must_contain":[],"min_chars":30,"repeats_family":true}
+{"id":"research-019","family":"research","instruction":"Summarize the current state of prompt injection with three key facts.","must_contain":[],"min_chars":30,"repeats_family":true}
+{"id":"research-020","family":"research","instruction":"Summarize the current state of SQL query planners with three key facts.","must_contain":[],"min_chars":30,"repeats_family":true}
+{"id":"research-021","family":"research","instruction":"Explain the trade-offs of vector databases for a small engineering team.","must_contain":[],"min_chars":30,"repeats_family":true}
+{"id":"research-022","family":"research","instruction":"Explain the trade-offs of retries with backoff for a small engineering team.","must_contain":[],"min_chars":30,"repeats_family":true}
+{"id":"research-023","family":"research","instruction":"Explain the trade-offs of cache invalidation for a small engineering team.","must_contain":[],"min_chars":30,"repeats_family":true}
+{"id":"research-024","family":"research","instruction":"Explain the trade-offs of feature flags for a small engineering team.","must_contain":[],"min_chars":30,"repeats_family":true}
+{"id":"research-025","family":"research","instruction":"Explain the trade-offs of API rate limits for a small engineering team.","must_contain":[],"min_chars":30,"repeats_family":true}
+{"id":"data_analysis-001","family":"data_analysis","instruction":"Compute descriptive statistics for a dataset about vector databases and interpret them.","must_contain":[],"min_chars":30,"repeats_family":false}
+{"id":"data_analysis-002","family":"data_analysis","instruction":"Compute descriptive statistics for a dataset about retries with backoff and interpret them.","must_contain":[],"min_chars":30,"repeats_family":false}
+{"id":"data_analysis-003","family":"data_analysis","instruction":"Compute descriptive statistics for a dataset about cache invalidation and interpret them.","must_contain":[],"min_chars":30,"repeats_family":false}
+{"id":"data_analysis-004","family":"data_analysis","instruction":"Compute descriptive statistics for a dataset about feature flags and interpret them.","must_contain":[],"min_chars":30,"repeats_family":false}
+{"id":"data_analysis-005","family":"data_analysis","instruction":"Compute descriptive statistics for a dataset about API rate limits and interpret them.","must_contain":[],"min_chars":30,"repeats_family":false}
+{"id":"data_analysis-006","family":"data_analysis","instruction":"Compute descriptive statistics for a dataset about data migrations and interpret them.","must_contain":[],"min_chars":30,"repeats_family":false}
+{"id":"data_analysis-007","family":"data_analysis","instruction":"Compute descriptive statistics for a dataset about blue-green deploys and interpret them.","must_contain":[],"min_chars":30,"repeats_family":false}
+{"id":"data_analysis-008","family":"data_analysis","instruction":"Compute descriptive statistics for a dataset about observability dashboards and interpret them.","must_contain":[],"min_chars":30,"repeats_family":true}
+{"id":"data_analysis-009","family":"data_analysis","instruction":"Compute descriptive statistics for a dataset about prompt injection and interpret them.","must_contain":[],"min_chars":30,"repeats_family":true}
+{"id":"data_analysis-010","family":"data_analysis","instruction":"Compute descriptive statistics for a dataset about SQL query planners and interpret them.","must_contain":[],"min_chars":30,"repeats_family":true}
+{"id":"data_analysis-011","family":"data_analysis","instruction":"Given sales numbers related to vector databases, identify the trend and one anomaly.","must_contain":[],"min_chars":30,"repeats_family":true}
+{"id":"data_analysis-012","family":"data_analysis","instruction":"Given sales numbers related to retries with backoff, identify the trend and one anomaly.","must_contain":[],"min_chars":30,"repeats_family":true}
+{"id":"data_analysis-013","family":"data_analysis","instruction":"Given sales numbers related to cache invalidation, identify the trend and one anomaly.","must_contain":[],"min_chars":30,"repeats_family":true}
+{"id":"data_analysis-014","family":"data_analysis","instruction":"Given sales numbers related to feature flags, identify the trend and one anomaly.","must_contain":[],"min_chars":30,"repeats_family":true}
+{"id":"data_analysis-015","family":"data_analysis","instruction":"Given sales numbers related to API rate limits, identify the trend and one anomaly.","must_contain":[],"min_chars":30,"repeats_family":true}
+{"id":"data_analysis-016","family":"data_analysis","instruction":"Given sales numbers related to data migrations, identify the trend and one anomaly.","must_contain":[],"min_chars":30,"repeats_family":true}
+{"id":"data_analysis-017","family":"data_analysis","instruction":"Given sales numbers related to blue-green deploys, identify the trend and one anomaly.","must_contain":[],"min_chars":30,"repeats_family":true}
+{"id":"data_analysis-018","family":"data_analysis","instruction":"Given sales numbers related to observability dashboards, identify the trend and one anomaly.","must_contain":[],"min_chars":30,"repeats_family":true}
+{"id":"data_analysis-019","family":"data_analysis","instruction":"Given sales numbers related to prompt injection, identify the trend and one anomaly.","must_contain":[],"min_chars":30,"repeats_family":true}
+{"id":"data_analysis-020","family":"data_analysis","instruction":"Given sales numbers related to SQL query planners, identify the trend and one anomaly.","must_contain":[],"min_chars":30,"repeats_family":true}
+{"id":"data_analysis-021","family":"data_analysis","instruction":"Write Python that validates a CSV about vector databases and reports row-level errors.","must_contain":[],"min_chars":30,"repeats_family":true}
+{"id":"data_analysis-022","family":"data_analysis","instruction":"Write Python that validates a CSV about retries with backoff and reports row-level errors.","must_contain":[],"min_chars":30,"repeats_family":true}
+{"id":"data_analysis-023","family":"data_analysis","instruction":"Write Python that validates a CSV about cache invalidation and reports row-level errors.","must_contain":[],"min_chars":30,"repeats_family":true}
+{"id":"data_analysis-024","family":"data_analysis","instruction":"Write Python that validates a CSV about feature flags and reports row-level errors.","must_contain":[],"min_chars":30,"repeats_family":true}
+{"id":"data_analysis-025","family":"data_analysis","instruction":"Write Python that validates a CSV about API rate limits and reports row-level errors.","must_contain":[],"min_chars":30,"repeats_family":true}
+{"id":"writing-001","family":"writing","instruction":"Draft a release announcement about vector databases in a confident, factual tone.","must_contain":[],"min_chars":30,"repeats_family":false}
+{"id":"writing-002","family":"writing","instruction":"Draft a release announcement about retries with backoff in a confident, factual tone.","must_contain":[],"min_chars":30,"repeats_family":false}
+{"id":"writing-003","family":"writing","instruction":"Draft a release announcement about cache invalidation in a confident, factual tone.","must_contain":[],"min_chars":30,"repeats_family":false}
+{"id":"writing-004","family":"writing","instruction":"Draft a release announcement about feature flags in a confident, factual tone.","must_contain":[],"min_chars":30,"repeats_family":false}
+{"id":"writing-005","family":"writing","instruction":"Draft a release announcement about API rate limits in a confident, factual tone.","must_contain":[],"min_chars":30,"repeats_family":false}
+{"id":"writing-006","family":"writing","instruction":"Draft a release announcement about data migrations in a confident, factual tone.","must_contain":[],"min_chars":30,"repeats_family":false}
+{"id":"writing-007","family":"writing","instruction":"Draft a release announcement about blue-green deploys in a confident, factual tone.","must_contain":[],"min_chars":30,"repeats_family":false}
+{"id":"writing-008","family":"writing","instruction":"Draft a release announcement about observability dashboards in a confident, factual tone.","must_contain":[],"min_chars":30,"repeats_family":true}
+{"id":"writing-009","family":"writing","instruction":"Draft a release announcement about prompt injection in a confident, factual tone.","must_contain":[],"min_chars":30,"repeats_family":true}
+{"id":"writing-010","family":"writing","instruction":"Draft a release announcement about SQL query planners in a confident, factual tone.","must_contain":[],"min_chars":30,"repeats_family":true}
+{"id":"writing-011","family":"writing","instruction":"Rewrite a technical explanation of vector databases for a non-technical audience.","must_contain":[],"min_chars":30,"repeats_family":true}
+{"id":"writing-012","family":"writing","instruction":"Rewrite a technical explanation of retries with backoff for a non-technical audience.","must_contain":[],"min_chars":30,"repeats_family":true}
+{"id":"writing-013","family":"writing","instruction":"Rewrite a technical explanation of cache invalidation for a non-technical audience.","must_contain":[],"min_chars":30,"repeats_family":true}
+{"id":"writing-014","family":"writing","instruction":"Rewrite a technical explanation of feature flags for a non-technical audience.","must_contain":[],"min_chars":30,"repeats_family":true}
+{"id":"writing-015","family":"writing","instruction":"Rewrite a technical explanation of API rate limits for a non-technical audience.","must_contain":[],"min_chars":30,"repeats_family":true}
+{"id":"writing-016","family":"writing","instruction":"Rewrite a technical explanation of data migrations for a non-technical audience.","must_contain":[],"min_chars":30,"repeats_family":true}
+{"id":"writing-017","family":"writing","instruction":"Rewrite a technical explanation of blue-green deploys for a non-technical audience.","must_contain":[],"min_chars":30,"repeats_family":true}
+{"id":"writing-018","family":"writing","instruction":"Rewrite a technical explanation of observability dashboards for a non-technical audience.","must_contain":[],"min_chars":30,"repeats_family":true}
+{"id":"writing-019","family":"writing","instruction":"Rewrite a technical explanation of prompt injection for a non-technical audience.","must_contain":[],"min_chars":30,"repeats_family":true}
+{"id":"writing-020","family":"writing","instruction":"Rewrite a technical explanation of SQL query planners for a non-technical audience.","must_contain":[],"min_chars":30,"repeats_family":true}
+{"id":"writing-021","family":"writing","instruction":"Write a one-page checklist for teams adopting vector databases.","must_contain":[],"min_chars":30,"repeats_family":true}
+{"id":"writing-022","family":"writing","instruction":"Write a one-page checklist for teams adopting retries with backoff.","must_contain":[],"min_chars":30,"repeats_family":true}
+{"id":"writing-023","family":"writing","instruction":"Write a one-page checklist for teams adopting cache invalidation.","must_contain":[],"min_chars":30,"repeats_family":true}
+{"id":"writing-024","family":"writing","instruction":"Write a one-page checklist for teams adopting feature flags.","must_contain":[],"min_chars":30,"repeats_family":true}
+{"id":"writing-025","family":"writing","instruction":"Write a one-page checklist for teams adopting API rate limits.","must_contain":[],"min_chars":30,"repeats_family":true}
+{"id":"coding-001","family":"coding","instruction":"Write a Python function that deduplicates a list of records about vector databases.","must_contain":[],"min_chars":30,"repeats_family":false}
+{"id":"coding-002","family":"coding","instruction":"Write a Python function that deduplicates a list of records about retries with backoff.","must_contain":[],"min_chars":30,"repeats_family":false}
+{"id":"coding-003","family":"coding","instruction":"Write a Python function that deduplicates a list of records about cache invalidation.","must_contain":[],"min_chars":30,"repeats_family":false}
+{"id":"coding-004","family":"coding","instruction":"Write a Python function that deduplicates a list of records about feature flags.","must_contain":[],"min_chars":30,"repeats_family":false}
+{"id":"coding-005","family":"coding","instruction":"Write a Python function that deduplicates a list of records about API rate limits.","must_contain":[],"min_chars":30,"repeats_family":false}
+{"id":"coding-006","family":"coding","instruction":"Write a Python function that deduplicates a list of records about data migrations.","must_contain":[],"min_chars":30,"repeats_family":false}
+{"id":"coding-007","family":"coding","instruction":"Write a Python function that deduplicates a list of records about blue-green deploys.","must_contain":[],"min_chars":30,"repeats_family":false}
+{"id":"coding-008","family":"coding","instruction":"Write a Python function that deduplicates a list of records about observability dashboards.","must_contain":[],"min_chars":30,"repeats_family":true}
+{"id":"coding-009","family":"coding","instruction":"Write a Python function that deduplicates a list of records about prompt injection.","must_contain":[],"min_chars":30,"repeats_family":true}
+{"id":"coding-010","family":"coding","instruction":"Write a Python function that deduplicates a list of records about SQL query planners.","must_contain":[],"min_chars":30,"repeats_family":true}
+{"id":"coding-011","family":"coding","instruction":"Automate a report on vector databases: read input rows and print a summary table.","must_contain":[],"min_chars":30,"repeats_family":true}
+{"id":"coding-012","family":"coding","instruction":"Automate a report on retries with backoff: read input rows and print a summary table.","must_contain":[],"min_chars":30,"repeats_family":true}
+{"id":"coding-013","family":"coding","instruction":"Automate a report on cache invalidation: read input rows and print a summary table.","must_contain":[],"min_chars":30,"repeats_family":true}
+{"id":"coding-014","family":"coding","instruction":"Automate a report on feature flags: read input rows and print a summary table.","must_contain":[],"min_chars":30,"repeats_family":true}
+{"id":"coding-015","family":"coding","instruction":"Automate a report on API rate limits: read input rows and print a summary table.","must_contain":[],"min_chars":30,"repeats_family":true}
+{"id":"coding-016","family":"coding","instruction":"Automate a report on data migrations: read input rows and print a summary table.","must_contain":[],"min_chars":30,"repeats_family":true}
+{"id":"coding-017","family":"coding","instruction":"Automate a report on blue-green deploys: read input rows and print a summary table.","must_contain":[],"min_chars":30,"repeats_family":true}
+{"id":"coding-018","family":"coding","instruction":"Automate a report on observability dashboards: read input rows and print a summary table.","must_contain":[],"min_chars":30,"repeats_family":true}
+{"id":"coding-019","family":"coding","instruction":"Automate a report on prompt injection: read input rows and print a summary table.","must_contain":[],"min_chars":30,"repeats_family":true}
+{"id":"coding-020","family":"coding","instruction":"Automate a report on SQL query planners: read input rows and print a summary table.","must_contain":[],"min_chars":30,"repeats_family":true}
+{"id":"coding-021","family":"coding","instruction":"Fix this buggy snippet that is supposed to sort vector databases entries by date.","must_contain":[],"min_chars":30,"repeats_family":true}
+{"id":"coding-022","family":"coding","instruction":"Fix this buggy snippet that is supposed to sort retries with backoff entries by date.","must_contain":[],"min_chars":30,"repeats_family":true}
+{"id":"coding-023","family":"coding","instruction":"Fix this buggy snippet that is supposed to sort cache invalidation entries by date.","must_contain":[],"min_chars":30,"repeats_family":true}
+{"id":"coding-024","family":"coding","instruction":"Fix this buggy snippet that is supposed to sort feature flags entries by date.","must_contain":[],"min_chars":30,"repeats_family":true}
+{"id":"coding-025","family":"coding","instruction":"Fix this buggy snippet that is supposed to sort API rate limits entries by date.","must_contain":[],"min_chars":30,"repeats_family":true}

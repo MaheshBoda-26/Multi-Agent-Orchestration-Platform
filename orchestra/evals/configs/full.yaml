@@ -1,0 +1,8 @@
+# The complete platform: reviewer on, parallel dispatch on, memory on, HITL on.
+name: full
+reviewer: true
+parallel: true
+max_active_subtasks: 4
+memory: true
+hitl: true
+routing: default
