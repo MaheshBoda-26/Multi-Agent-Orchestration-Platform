@@ -2,7 +2,7 @@ import logging
 from typing import Any, Dict, List, Optional, Union
 
 from langgraph.graph import StateGraph, END
-from langgraph.types import Send
+from langgraph.types import Send, interrupt
 
 from agents.supervisor import SupervisorAgent
 from agents.specialists import SpecialistAgent, SPECIALIST_CONFIGS
@@ -457,6 +457,10 @@ class OrchestraGraph:
 
     async def node_synthesize(self, state: GraphState) -> Dict[str, Any]:
         results: Dict[str, SubtaskResult] = state.get("results") or {}
+
+        # A human rejection/takeover already produced the final answer; keep it.
+        if state.get("final_response") and not results:
+            return {}
 
         usable = {sid: r for sid, r in results.items() if r.status == "accepted"}
         unusable = {sid: r for sid, r in results.items() if r.status != "accepted"}

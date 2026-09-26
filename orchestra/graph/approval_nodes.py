@@ -11,16 +11,15 @@ Decisions:
 - take_over        mark the task for a human and end the agent's run
 """
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Mapping, Optional
 
 from graph.hitl import hitl_manager
 from graph.validate import validate_plan
-from observability.spans import span
 
 logger = logging.getLogger(__name__)
 
 
-def plan_approval_payload(state: Dict[str, Any], confidence: float) -> Dict[str, Any]:
+def plan_approval_payload(state: Mapping[str, Any], confidence: float) -> Dict[str, Any]:
     plan = state.get("plan") or []
     return hitl_manager.create_interrupt_payload(
         task_id=str(state.get("task_id", "unknown")),
@@ -74,7 +73,7 @@ def failure_approval_payload(
 
 
 def apply_plan_decision(
-    decision: Optional[Dict[str, Any]], state: Dict[str, Any]
+    decision: Optional[Dict[str, Any]], state: Mapping[str, Any]
 ) -> Dict[str, Any]:
     """Turn a human decision on the plan gate into a state update."""
     decision = decision or {}
@@ -140,17 +139,3 @@ def apply_failure_decision(
     return {"reject_subtask": subtask_id}
 
 
-class ApprovalGate:
-    """Interrupt helpers kept together for testability."""
-
-    @staticmethod
-    def with_span(name: str, **attrs: Any):
-        return span(name, **attrs)
-
-
-async def collect_pending(state: Dict[str, Any]) -> List[Dict[str, Any]]:
-    return [
-        info
-        for info in (state.get("pending_approvals") or {}).values()
-        if info.get("status") == "pending"
-    ]
