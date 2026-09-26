@@ -6,7 +6,7 @@ import uuid
 from typing import Any, Dict, List, Optional
 
 import asyncpg
-from fastapi import BackgroundTasks, FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse, StreamingResponse
 from pydantic import BaseModel
 
@@ -16,9 +16,8 @@ from api.routes import (
     get_approval, resolve_approval, get_task_approvals,
     ApprovalRequest, ApprovalDecision,
 )
-from graph.build import OrchestraGraph
-from llm.factory import build_provider
 from migrations import run_migrations
+from worker.tasks import run_task
 
 logger = logging.getLogger(__name__)
 
@@ -63,11 +62,11 @@ class TaskResponse(BaseModel):
 
 
 @app.post("/tasks", response_model=TaskResponse, status_code=202)
-async def create_task(request: TaskRequest, background_tasks: BackgroundTasks):
-    """Enqueue a task and return immediately; the run happens in the background."""
+async def create_task(request: TaskRequest):
+    """Enqueue a task on Celery and return immediately (FastAPI never blocks)."""
     task_id = uuid.uuid4()
     await repository.create_task(pool, task_id, request.task_description)
-    background_tasks.add_task(run_task, str(task_id), request.task_description)
+    run_task.delay(str(task_id), request.task_description)
     return TaskResponse(task_id=str(task_id), status="queued")
 
 
@@ -166,45 +165,6 @@ async def decide_approval(approval_id: str, decision: ApprovalDecision):
 @app.get("/tasks/{task_id}/approvals", response_model=List[ApprovalRequest])
 async def get_task_approvals_endpoint(task_id: str):
     return await get_task_approvals(pool, task_id)
-
-
-# --- Task execution ---------------------------------------------------------
-
-async def run_task(task_id: str, description: str) -> None:
-    task_uuid = uuid.UUID(task_id)
-    try:
-        provider = build_provider()
-        graph = OrchestraGraph(provider)
-
-        await repository.set_task_status(pool, task_uuid, "running")
-
-        state: Dict[str, Any] = {
-            "task_id": task_id,
-            "task_description": description,
-            "plan": None,
-            "results": {},
-            "attempts": {},
-            "review_feedback": {},
-            "shared_context": "",
-            "final_response": None,
-        }
-        final_state = await graph.workflow.ainvoke(state)
-
-        plan = final_state.get("plan") or []
-        if plan:
-            await repository.save_task_plan(pool, task_uuid, plan)
-
-        results: Dict[str, Any] = final_state.get("results") or {}
-        await repository.complete_task(pool, task_uuid, {
-            "final_response": final_state.get("final_response"),
-            "subtasks": {
-                key: value.model_dump(mode="json") if hasattr(value, "model_dump") else value
-                for key, value in results.items()
-            },
-        })
-    except Exception as exc:
-        logger.exception("Task %s failed", task_id)
-        await repository.fail_task(pool, task_uuid, str(exc))
 
 
 if __name__ == "__main__":
