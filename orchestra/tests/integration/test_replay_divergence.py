@@ -2,96 +2,123 @@
 loaded, one input is edited, the graph re-runs in a fresh thread, and the diff
 shows which outputs moved - while the original checkpoint stays intact.
 
-Requires Postgres + Redis reachable on localhost (compose services) and skips
-otherwise. The FakeProvider makes divergence deterministic: editing
+Requires Postgres reachable on localhost (compose service) and skips
+otherwise; the replay itself never involves the worker or broker. The
+description-sensitive fake planner makes divergence deterministic: editing
 task_description changes the supervisor's plan input, so the replayed plan
-differs from the original.
+differs from the original, while a no-edit replay is bit-identical.
 """
+import json
 import uuid
 
 import asyncpg
 import pytest
 
+from agents.supervisor import Plan, Subtask
 from graph.checkpointer import create_checkpointer
 from graph.build import OrchestraGraph
-from graph.replay import apply_edits, divergence_diff, replay_task
-from llm.fake import FakeProvider
-from worker.celery_app import celery_app
-from worker.tasks import run_task
-
-from .helpers import (
-    DATABASE_URL,
-    TEST_BROKER_URL,
-    cleanup_task,
-    postgres_available,
-    redis_available,
-    spawn_worker,
-    stop_worker,
-    wait_for_terminal,
-    wait_for_worker,
+from graph.replay import (
+    apply_edits,
+    divergence_diff,
+    load_checkpoint_values,
+    replay_task,
 )
+from llm.fake import FakeProvider
+
+from .helpers import DATABASE_URL, postgres_available
 
 pytestmark = pytest.mark.integration
 
+ORIGINAL_DESCRIPTION = "replay divergence test"
+EDITED_DESCRIPTION = "replay divergence test (edited)"
+
+
+class DescriptionSensitiveProvider(FakeProvider):
+    """Plans echo the task description, so an edited description changes the
+    plan deterministically - modelling "a different ask plans differently"."""
+
+    async def complete_structured(self, prompt, response_model, **kwargs):
+        if "Orchestra Supervisor" in prompt:
+            line = next(
+                (l for l in prompt.splitlines() if l.startswith("Task: ")), "Task:"
+            )
+            description = line.removeprefix("Task: ").strip()
+            return Plan(
+                tasks=[Subtask(
+                    id="t1",
+                    description=f"Handle: {description}",
+                    specialist="researcher",
+                    dependencies=[],
+                )],
+                reasoning=f"Single-step plan for: {description}",
+                confidence=0.9,
+            )
+        return await super().complete_structured(prompt, response_model, **kwargs)
+
+
+def _initial_state(task_id: str, description: str) -> dict:
+    return {
+        "task_id": task_id,
+        "task_description": description,
+        "plan": None,
+        "results": {},
+        "attempts": {},
+        "review_feedback": {},
+        "shared_context": "",
+        "final_response": None,
+    }
+
 
 @pytest.mark.asyncio
-async def test_replay_shows_divergence_and_keeps_original(tmp_path):
-    if not redis_available() or not await postgres_available():
-        pytest.skip("Postgres and Redis are required for the replay test")
-    celery_app.conf.broker_url = TEST_BROKER_URL
+async def test_replay_shows_divergence_and_keeps_original():
+    if not await postgres_available():
+        pytest.skip("Postgres is required for the replay test")
 
     pool = await asyncpg.create_pool(DATABASE_URL, min_size=1, max_size=3)
-    task_id = uuid.uuid4()
-    worker = None
     ckpt_pool = None
+    replay_thread_ids: list[str] = []
     try:
-        await pool.execute(
-            "INSERT INTO tasks (id, request, status) VALUES ($1, $2, 'queued')",
-            task_id, "replay divergence test",
-        )
-
-        # Complete a real run so a final checkpoint exists.
-        worker = spawn_worker({}, tmp_path / "worker.log")
-        assert wait_for_worker(tmp_path / "worker.log"), (
-            "worker never came up:\n" + (tmp_path / "worker.log").read_text()
-        )
-        run_task.delay(str(task_id), "replay divergence test")
-        status = await wait_for_terminal(pool, task_id)
-        assert status == "completed", f"original run ended as {status!r}"
-
         ckpt_pool, checkpointer = await create_checkpointer(DATABASE_URL)
-        graph = OrchestraGraph(FakeProvider(), checkpointer=checkpointer)
-        thread_id = str(task_id)
+        provider = DescriptionSensitiveProvider()
+        graph = OrchestraGraph(provider, checkpointer=checkpointer)
 
-        original_snapshot = await checkpointer.aget_tuple(
+        # Complete a real run so a final checkpoint exists (in-process; the
+        # worker path is covered by the durability tests).
+        thread_id = str(uuid.uuid4())
+        await graph.workflow.ainvoke(
+            _initial_state(thread_id, ORIGINAL_DESCRIPTION),
+            {"configurable": {"thread_id": thread_id}},
+            durability="sync",
+        )
+        snapshot = await checkpointer.aget_tuple(
             {"configurable": {"thread_id": thread_id}}
         )
-        assert original_snapshot is not None
-        original_state = (
-            getattr(original_snapshot, "state", None)
-            or getattr(original_snapshot, "values", None)
-        )
+        assert snapshot is not None
+        original_state = load_checkpoint_values(snapshot)
         assert original_state.get("final_response")
+        original_plan = json.dumps(original_state.get("plan"), default=str)
+        assert ORIGINAL_DESCRIPTION in original_plan
 
         # Edit one input and replay into a fresh thread.
         result = await replay_task(
             checkpointer,
             graph.workflow,
             thread_id,
-            {"task_description": "replay divergence test (edited)"},
+            {"task_description": EDITED_DESCRIPTION},
         )
+        replay_thread_ids.append(result["replay_thread_id"])
         assert result["edited_fields"] == ["task_description"]
         assert result["changed"], "editing the task description must move the plan"
         assert "plan" in result["changed_fields"]
-        assert result["diffs"]["plan"]["original"] != result["diffs"]["plan"]["replayed"]
+        replayed_plan = json.dumps(result["diffs"]["plan"]["replayed"], default=str)
+        assert EDITED_DESCRIPTION in replayed_plan
 
         # The original checkpoint is untouched by the replay.
         after = await checkpointer.aget_tuple(
             {"configurable": {"thread_id": thread_id}}
         )
-        after_state = (
-            getattr(after, "state", None) or getattr(after, "values", None)
-        )
+        assert after is not None
+        after_state = load_checkpoint_values(after)
         assert after_state.get("final_response") == original_state.get("final_response")
         assert after_state.get("task_description") == original_state.get(
             "task_description"
@@ -105,6 +132,7 @@ async def test_replay_shows_divergence_and_keeps_original(tmp_path):
 
         # No-edit replay: identical inputs, identical outputs.
         same = await replay_task(checkpointer, graph.workflow, thread_id, {})
+        replay_thread_ids.append(same["replay_thread_id"])
         assert not same["changed"], "a replay with no edits must not diverge"
 
         # Unknown fields are rejected loudly.
@@ -115,8 +143,9 @@ async def test_replay_shows_divergence_and_keeps_original(tmp_path):
         diff = divergence_diff(original_state, dict(original_state))
         assert diff == {"changed": False, "changed_fields": [], "diffs": {}}
     finally:
-        stop_worker(worker)
         if ckpt_pool is not None:
             await ckpt_pool.close()
-        await cleanup_task(pool, task_id)
+        for table in ("checkpoints", "checkpoint_blobs", "checkpoint_writes"):
+            await pool.execute(f"DELETE FROM {table} WHERE thread_id = ANY($1)",
+                               replay_thread_ids)
         await pool.close()
