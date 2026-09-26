@@ -1,5 +1,5 @@
 import logging
-from typing import Any, Dict, List, Union
+from typing import Any, Dict, List, Optional, Union
 
 from langgraph.graph import StateGraph, END
 from langgraph.types import Send
@@ -29,11 +29,17 @@ class OrchestraGraph:
     next batch, so no two branches can schedule the same subtask twice.
     """
 
-    def __init__(self, llm: LLMProvider, hitl_enabled: bool = False):
+    def __init__(
+        self,
+        llm: LLMProvider,
+        hitl_enabled: Optional[bool] = None,
+        checkpointer: Any = None,
+    ):
         self.llm = llm
-        # interrupt() needs a checkpointer to pause and resume; that lands with
-        # the durability phase, so nodes only raise for a human when enabled.
-        self.hitl_enabled = hitl_enabled
+        self.checkpointer = checkpointer
+        # interrupt() needs a checkpointer to pause and resume. Default to on
+        # whenever one is attached; callers can still force it off for tests.
+        self.hitl_enabled = bool(checkpointer) if hitl_enabled is None else hitl_enabled
         self.supervisor = SupervisorAgent(llm)
         self.specialists = {
             name: SpecialistAgent(config, llm)
@@ -67,7 +73,7 @@ class OrchestraGraph:
         builder.add_edge("review", "dispatch")
         builder.add_edge("synthesize", END)
 
-        return builder.compile()
+        return builder.compile(checkpointer=self.checkpointer)
 
     # ------------------------------------------------------------- supervisor
 
