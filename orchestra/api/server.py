@@ -17,7 +17,7 @@ from api.routes import (
     ApprovalRequest, ApprovalDecision,
 )
 from migrations import run_migrations
-from worker.tasks import run_task
+from worker.tasks import run_task, resume_task
 
 logger = logging.getLogger(__name__)
 
@@ -204,6 +204,10 @@ async def _get_task_or_404(task_id: str) -> Dict[str, Any]:
 
 # --- Approval endpoints -----------------------------------------------------
 
+class ClarifyQuestion(BaseModel):
+    question: str
+
+
 @app.get("/approvals/pending", response_model=List[ApprovalRequest])
 async def list_pending_approvals():
     return await get_pending_approvals(pool)
@@ -225,8 +229,32 @@ async def get_approval_details(approval_id: str):
     return approval
 
 
+# --- Approval endpoints -----------------------------------------------------
+
+
+# NOTE: declared before /approvals/{approval_id} so the literal path wins the
+# route match; otherwise the UI page 404s as an unknown approval id.
+@app.get("/approvals/ui", response_class=HTMLResponse)
+async def approval_ui():
+    with open("web/approval_page.html") as f:
+        return HTMLResponse(content=f.read())
+
+
+@app.get("/approvals/{approval_id}", response_model=ApprovalRequest)
+async def get_approval_details(approval_id: str):
+    approval = await get_approval(pool, approval_id)
+    if not approval:
+        raise HTTPException(status_code=404, detail="Approval not found")
+    return approval
+
+
 @app.post("/approvals/{approval_id}/decide")
 async def decide_approval(approval_id: str, decision: ApprovalDecision):
+    """Record a human decision and hand the task back to a worker.
+
+    The approvals row is the durable audit record; the worker replays the
+    paused interrupt node with the decision via ``Command(resume=...)``.
+    """
     approval = await get_approval(pool, approval_id)
     if not approval:
         raise HTTPException(status_code=404, detail="Approval not found")
@@ -234,15 +262,71 @@ async def decide_approval(approval_id: str, decision: ApprovalDecision):
         raise HTTPException(status_code=400, detail="Approval already resolved")
 
     resolved = await resolve_approval(pool, approval_id, decision)
-
-    # Resuming a paused graph needs a LangGraph checkpointer, which lands with
-    # the durability phase. Until then the decision is recorded durably (the
-    # approvals row is the audit record) and the task is not silently resumed.
+    # A worker applies the decision; retries land on the same durable queue.
+    resume_task.delay(approval.task_id, approval_id)
     logger.info(
-        "Approval %s decided with %s for task %s; graph resume pending durability phase",
+        "Approval %s decided with %s for task %s; resume enqueued",
         approval_id, decision.action, approval.task_id,
     )
     return resolved
+
+
+@app.post("/approvals/{approval_id}/clarify")
+async def clarify_approval(approval_id: str, question: ClarifyQuestion):
+    """Answer a human's question from the checkpoint, without resuming.
+
+    The paused graph's state holds the plan, results and the pending approval
+    payload; a cheap LLM call answers from that context only. The run stays
+    paused either way.
+    """
+    approval = await get_approval(pool, approval_id)
+    if not approval:
+        raise HTTPException(status_code=404, detail="Approval not found")
+    if approval.status != "pending":
+        raise HTTPException(status_code=400, detail="Approval already resolved")
+
+    try:
+        answer = await _clarify_from_checkpoint(approval, question.question)
+    except LookupError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return {"approval_id": approval_id, "question": question.question, "answer": answer}
+
+
+async def _clarify_from_checkpoint(approval: ApprovalRequest, question: str) -> str:
+    """Read-only Q&A over the paused run's checkpointed state."""
+    from graph.checkpointer import create_checkpointer
+
+    ckpt_pool, checkpointer = await create_checkpointer(os.getenv(
+        "DATABASE_URL", "postgresql://orchestra:orchestra@localhost:5432/orchestra"
+    ))
+    try:
+        snapshot = await checkpointer.aget_tuple(
+            {"configurable": {"thread_id": approval.task_id}}
+        )
+    finally:
+        await ckpt_pool.close()
+    if snapshot is None:
+        raise LookupError("No checkpoint exists for this task")
+
+    state = snapshot.values or {}
+    summary = {
+        "task_description": state.get("task_description"),
+        "plan": state.get("plan"),
+        "results": {
+            sid: r.model_dump() if hasattr(r, "model_dump") else r
+            for sid, r in (state.get("results") or {}).items()
+        },
+        "pending_approval": approval.model_dump(),
+    }
+    prompt = (
+        "You are answering a human reviewer's question about a paused "
+        "multi-agent run. Use only the JSON state below; if it does not "
+        "contain the answer, say so.\n\nState:\n"
+        f"{json.dumps(summary, indent=2, default=str)}\n\n"
+        f"Question: {question}\n\nAnswer concisely:"
+    )
+    response = await FakeProvider().complete(prompt)
+    return response.content
 
 
 @app.get("/tasks/{task_id}/approvals", response_model=List[ApprovalRequest])
