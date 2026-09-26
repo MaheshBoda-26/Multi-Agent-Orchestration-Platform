@@ -221,10 +221,11 @@ async def replay_task_endpoint(task_id: str, request: ReplayRequest):
         return await replay_task(
             checkpointer, graph.workflow, task_id, request.edits
         )
+    except KeyError as exc:
+        # KeyError is a LookupError, so this must come first.
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
-    except KeyError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
     finally:
         await ckpt_pool.close()
 

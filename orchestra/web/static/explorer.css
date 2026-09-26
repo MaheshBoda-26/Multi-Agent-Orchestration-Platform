@@ -1,0 +1,33 @@
+/* Trace explorer layout (Phase 8, Task 44). */
+.explorer-layout { display: flex; gap: 20px; align-items: flex-start; }
+.task-list { width: 320px; flex-shrink: 0; background: white; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); padding: 16px; }
+.task-list h2 { font-size: 16px; margin-bottom: 12px; color: #1a1a1a; }
+.task-list ul { list-style: none; }
+.task-list li { padding: 10px 12px; border-radius: 6px; cursor: pointer; margin-bottom: 4px; }
+.task-list li:hover { background: #f0f4f8; }
+.task-list li.selected { background: #e3f2fd; }
+.task-list .request { font-size: 13px; color: #333; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.task-list .meta { display: flex; justify-content: space-between; font-size: 11px; color: #999; margin-top: 2px; }
+
+.status-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
+.status-dot.completed { background: #28a745; }
+.status-dot.running, .status-dot.queued { background: #0066cc; }
+.status-dot.awaiting_human { background: #e65100; }
+.status-dot.failed, .status-dot.cancelled { background: #dc3545; }
+
+.task-detail { flex: 1; min-width: 0; }
+.section { background: white; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); padding: 20px; margin-bottom: 20px; }
+.section h2 { font-size: 16px; margin-bottom: 12px; color: #1a1a1a; }
+.section pre { white-space: pre-wrap; font-family: monospace; font-size: 13px; color: #444; max-height: 320px; overflow: auto; }
+
+.span-tree { list-style: none; padding-left: 0; }
+.span-tree ul { list-style: none; padding-left: 20px; border-left: 1px solid #e5e5e5; margin-left: 8px; }
+.span-row { padding: 4px 8px; border-radius: 4px; cursor: pointer; display: flex; gap: 10px; align-items: baseline; }
+.span-row:hover { background: #f0f4f8; }
+.span-name { font-weight: 600; font-size: 13px; color: #1a1a1a; }
+.span-latency { font-size: 11px; color: #888; }
+.span-attrs { display: none; background: #fafafa; border: 1px solid #eee; border-radius: 6px; padding: 10px 12px; margin: 4px 0 8px 28px; font-family: monospace; font-size: 12px; color: #444; white-space: pre-wrap; }
+.span-attrs.open { display: block; }
+
+.task-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+.task-header .request { font-size: 15px; font-weight: 600; color: #1a1a1a; }
