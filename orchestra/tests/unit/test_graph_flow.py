@@ -62,6 +62,17 @@ def test_plan_rejects_unknown_specialist():
     assert any("unknown specialist" in e for e in errors)
 
 
+def test_plan_topological_order():
+    """A valid dependency chain passes validation; order is enforced at
+    execution time by test_dependent_subtasks_run_once_after_dependencies_are_accepted."""
+    chain = [
+        {"id": "a", "description": "a", "specialist": "researcher", "dependencies": []},
+        {"id": "b", "description": "b", "specialist": "data_analyst", "dependencies": ["a"]},
+        {"id": "c", "description": "c", "specialist": "writer", "dependencies": ["b"]},
+    ]
+    assert validate_plan(chain) == []
+
+
 def test_plan_rejects_missing_dependency_and_accepts_valid_dag():
     bad = validate_plan([
         {"id": "a", "description": "a", "specialist": "writer", "dependencies": ["ghost"]},
