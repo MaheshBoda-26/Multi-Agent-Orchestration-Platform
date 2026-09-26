@@ -12,6 +12,12 @@ http://localhost:8000, e.g. `docker compose up`):
 Defaults to the deterministic fake provider, so the demo runs with zero keys;
 set LLM_PROVIDER=openrouter (+ OPENROUTER_API_KEY) before `docker compose up`
 for the real thing.
+
+The HITL milestone pauses only when the planner produces a low-confidence
+plan: with the fake provider that means starting the worker with FAKE_PLAN_PATH
+pointing at a confidence<0.6 plan file (docker compose demo profile does this);
+with a real provider it happens naturally on uncertain asks. When neither is
+in play the demo prints a skip note and finishes the rest of the tour.
 """
 import argparse
 import asyncio
@@ -80,6 +86,7 @@ async def main(base_url: str) -> int:
                 f"Demo run for user {DEMO_USER}: research Orchestra's architecture "
                 "and write a short summary."
             ),
+            "user_id": DEMO_USER,
         })
         response.raise_for_status()
         task_id = response.json()["task_id"]
@@ -106,6 +113,7 @@ async def main(base_url: str) -> int:
                 f"Demo run for user {DEMO_USER}: write a follow-up analysis of "
                 "Orchestra's durability guarantees."
             ),
+            "user_id": DEMO_USER,
         })
         response.raise_for_status()
         second_id = response.json()["task_id"]
@@ -115,18 +123,30 @@ async def main(base_url: str) -> int:
             await client.get(f"/users/{DEMO_USER}/memories")
         ).json().get("memories", [])
         print(f"   long-term memories stored for {DEMO_USER}: {len(memories)}")
+        for memory in memories[:2]:
+            print(f"   - [{memory['kind']}] {memory['content'][:80]}…")
 
         # --- 3. human-in-the-loop: low-confidence plan pauses, human approves -
         print("\n3) Human-in-the-loop: low-confidence plan pauses the run")
         response = await client.post("/tasks", json={
             "task_description": (
-                f"Demo HITL for user {DEMO_USER}: plan something unusual and "
-                "novel that the supervisor is unsure about."
+                f"[HITL-DEMO] Demo HITL for user {DEMO_USER}: plan something "
+                "unusual and novel that the supervisor is unsure about."
             ),
+            "user_id": DEMO_USER,
         })
         response.raise_for_status()
         hitl_id = response.json()["task_id"]
-        await _wait_status(client, hitl_id, "awaiting_human")
+
+        row = await _wait_for_hitl_or_terminal(client, hitl_id, timeout=90.0)
+        if row.get("status") != "awaiting_human":
+            print(
+                "   (skipped: no FAKE_PLAN_PATH on the worker or no OPENROUTER_API_KEY; "
+                "the default planner is confident, so nothing pauses. Set "
+                "FAKE_PLAN_PATH on the worker env to demo HITL with the fake provider.)"
+            )
+            return await _finish(client, task_id, base_url)
+
         approval = await _wait_approval(client, hitl_id)
         print(f"   paused at trigger: {approval['trigger']}")
         context = approval.get("context") or {}
@@ -148,36 +168,56 @@ async def main(base_url: str) -> int:
         print(f"   after approval: {row['status']}")
 
         # --- 4. observability: traces, costs, replay, dashboards --------------
-        print("\n4) Observability")
-        cost = (await client.get(f"/tasks/{task_id}/cost")).json()
-        print(
-            f"   task {task_id}: {cost['prompt_tokens']} prompt + "
-            f"{cost['completion_tokens']} completion tokens, "
-            f"{cost['latency_ms']} ms"
-        )
-        replay = await client.post(
-            f"/tasks/{task_id}/replay",
-            json={"edits": {"task_description": "Replay: what if the ask had changed?"}},
-        )
-        if replay.status_code == 200:
-            body = replay.json()
-            print(
-                f"   replay diverged fields: {body['changed_fields'] or 'none'} "
-                f"(thread {body['replay_thread_id'][:18]}…)"
-            )
-        else:
-            print(f"   replay unavailable: HTTP {replay.status_code}")
+        return await _finish(client, task_id, base_url)
 
-        print("\nOpen in a browser:")
-        for path in (
-            f"/tasks/{task_id}/explorer",
-            "/dashboard",
-            "/approvals/ui",
-            "/memory/ui",
-        ):
-            print(f"   {base_url}{path}")
-        print("\nDemo complete.")
-        return 0
+
+async def _finish(
+    client: httpx.AsyncClient, task_id: str, base_url: str = ""
+) -> int:
+    print("\n4) Observability")
+    cost = (await client.get(f"/tasks/{task_id}/cost")).json()
+    print(
+        f"   task {task_id}: {cost['prompt_tokens']} prompt + "
+        f"{cost['completion_tokens']} completion tokens, "
+        f"{cost['latency_ms']} ms"
+    )
+    replay = await client.post(
+        f"/tasks/{task_id}/replay",
+        json={"edits": {"task_description": "Replay: what if the ask had changed?"}},
+    )
+    if replay.status_code == 200:
+        body = replay.json()
+        print(
+            f"   replay diverged fields: {body['changed_fields'] or 'none'} "
+            f"(thread {body['replay_thread_id'][:18]}…)"
+        )
+    else:
+        print(f"   replay unavailable: HTTP {replay.status_code}")
+
+    print("\nOpen in a browser:")
+    for path in (
+        f"/tasks/{task_id}/explorer",
+        "/dashboard",
+        "/approvals/ui",
+        "/memory/ui",
+    ):
+        print(f"   {base_url or 'http://localhost:8000'}{path}")
+    print("\nDemo complete.")
+    return 0
+
+
+async def _wait_for_hitl_or_terminal(
+    client: httpx.AsyncClient, task_id: str, timeout: float
+) -> dict:
+    """Wait for awaiting_human or a terminal state; timeout returns last row."""
+    deadline = time.monotonic() + timeout
+    row: dict = {}
+    while time.monotonic() < deadline:
+        row = (await client.get(f"/tasks/{task_id}")).json()
+        if row.get("status") in {"awaiting_human", "completed", "failed", "cancelled"}:
+            return row
+        await asyncio.sleep(0.5)
+    return row
 
 
 async def _count_spans(client: httpx.AsyncClient, task_id: str, name: str) -> int:

@@ -56,6 +56,11 @@ services:
       LLM_PROVIDER: ${LLM_PROVIDER:-fake}
       WORKSPACES_ROOT: /app/workspaces
       ORCHESTRA_SANDBOX_IMAGE: python:3.14-slim
+      # Demo profile: `docker compose --profile demo up` makes the fake
+      # planner return a low-confidence plan, so scripts/demo.py's HITL
+      # milestone actually pauses for human approval.
+      FAKE_PLAN_PATH: ${FAKE_PLAN_PATH:-}
+    profiles: ["", "demo"]
     depends_on:
       postgres:
         condition: service_healthy

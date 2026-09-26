@@ -61,7 +61,7 @@ async def test_pause_survives_worker_restart(tmp_path):
     try:
         await pool.execute(
             "INSERT INTO tasks (id, request, status) VALUES ($1, $2, 'queued')",
-            task_id, "HITL pause durability test",
+            task_id, "[HITL-DEMO] HITL pause durability test",
         )
 
         # --- attempt 1: run until the plan-approval pause, then kill ---
@@ -72,7 +72,7 @@ async def test_pause_survives_worker_restart(tmp_path):
         assert wait_for_worker(first_log), (
             "first worker never came up:\n" + first_log.read_text()
         )
-        run_task.delay(str(task_id), "HITL pause durability test")
+        run_task.delay(str(task_id), "[HITL-DEMO] HITL pause durability test")
 
         paused = await wait_for_status(pool, task_id, "awaiting_human")
         assert paused, "task never paused for plan approval"

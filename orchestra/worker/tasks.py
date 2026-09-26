@@ -48,9 +48,12 @@ def _database_url() -> str:
     return os.getenv("DATABASE_URL", DEFAULT_DATABASE_URL)
 
 
-def initial_state(task_id: str, description: str) -> Dict[str, Any]:
+def initial_state(
+    task_id: str, description: str, user_id: Optional[str] = None
+) -> Dict[str, Any]:
     return {
         "task_id": task_id,
+        "user_id": user_id,
         "task_description": description,
         "plan": None,
         "results": {},
@@ -104,9 +107,11 @@ async def _resume_task_async(task_id: str, approval_id: str) -> None:
 
         task_row = await repository.get_task(pool, task_uuid)
         description = (task_row or {}).get("request") or "resumed task"
+        user_id = (task_row or {}).get("user_id")
         await repository.set_task_status(pool, task_uuid, "running")
         await _run_graph(
-            pool, task_uuid, description, resume_command=Command(resume=resolution)
+            pool, task_uuid, description,
+            resume_command=Command(resume=resolution), user_id=user_id,
         )
     except Exception:
         logger.exception("Resume of task %s failed", task_id)
@@ -140,7 +145,10 @@ async def _run_task_async(task_id: str, description: str) -> None:
             return
 
         await repository.set_task_status(pool, task_uuid, "running")
-        await _run_graph(pool, task_uuid, description)
+        await _run_graph(
+            pool, task_uuid, description,
+            user_id=(row or {}).get("user_id"),
+        )
     except Exception as exc:
         logger.exception("Task %s failed", task_id)
         if pool is not None:
@@ -164,6 +172,7 @@ async def _run_graph(
     task_uuid: uuid.UUID,
     description: str,
     resume_command: Optional[Command] = None,
+    user_id: Optional[str] = None,
 ) -> None:
     """Drive one graph run (fresh, crash-resume, or human-resume) to a stop.
 
@@ -206,7 +215,7 @@ async def _run_graph(
                 logger.info("Resuming task %s from its last checkpoint", task_uuid)
                 invoke_input = None
             else:
-                invoke_input = initial_state(str(task_uuid), description)
+                invoke_input = initial_state(str(task_uuid), description, user_id)
             # durability="sync" commits every super-step before the next one
             # starts; the default (async) loses recent writes on SIGKILL.
             final_state = await graph.workflow.ainvoke(

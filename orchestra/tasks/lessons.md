@@ -40,3 +40,17 @@ Append-only. One entry per correction or root cause, dated.
 - **Fake baselines must be symmetric.** A replay no-edit proof diverges unless
   the original run and the replay share one provider (script the worker via
   FAKE_PLAN_PATH or run the original in-process, as the replay test does).
+- **`celery -A worker.celery_app` drops the cwd from sys.path** after app
+  discovery, so autodiscovered `worker/tasks.py` cannot import sibling
+  packages in a container (`ModuleNotFoundError: api`). Set `PYTHONPATH=/app`
+  in the image; `python -m celery` (used by tests) never hits this.
+- **A single `FAKE_PLAN_PATH` on a worker applies to every task it runs.**
+  For mixed demo traffic, gate the scripted plan behind a per-task
+  `[HITL-DEMO]` marker in the task description (marker key inserted first —
+  FakeProvider matches in insertion order). Without scoping, the first demo
+  task also paused and the run hung.
+- **`initial_state` must carry `user_id`** or all pgvector memories land under
+  "anonymous" and per-user memory retrieval/erasure is dead code.
+- **A compose demo needs all four services** (postgres redis api worker);
+  `POST /tasks` 500s without Redis and tasks queue forever without a worker.
+  Verify pages AND the demo, not just page 200s.

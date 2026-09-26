@@ -77,9 +77,16 @@ class FakeProvider(LLMProvider):
         # subprocess cannot call set_scripted_response).
         plan_path = os.getenv("FAKE_PLAN_PATH")
         if plan_path:
-            self.default_responses["Orchestra Supervisor"] = open(
-                plan_path, encoding="utf-8"
-            ).read()
+            scripted_plan = open(plan_path, encoding="utf-8").read()
+            # Per-task override: a task whose description carries the
+            # [HITL-DEMO] marker plans with the scripted (low-confidence) plan,
+            # while every other task keeps the default confident plan. The
+            # marker key is inserted FIRST because matching iterates in
+            # insertion order and HITL-marked prompts contain both substrings.
+            self.default_responses = {
+                "[HITL-DEMO]": scripted_plan,
+                **self.default_responses,
+            }
         # Read by RecordingLLMProvider after complete_structured calls.
         self.last_usage: Optional[LLMResponse] = None
 

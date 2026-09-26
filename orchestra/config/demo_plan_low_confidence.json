@@ -1,0 +1,18 @@
+{
+  "tasks": [
+    {
+      "id": "t1",
+      "description": "Sketch two alternative approaches for the request",
+      "specialist": "researcher",
+      "dependencies": []
+    },
+    {
+      "id": "t2",
+      "description": "Weigh the alternatives and write up a recommendation",
+      "specialist": "writer",
+      "dependencies": ["t1"]
+    }
+  ],
+  "reasoning": "The request is unusual and novel; two alternatives must be explored before committing, so confidence is below the auto-run threshold and a human should confirm the direction.",
+  "confidence": 0.35
+}

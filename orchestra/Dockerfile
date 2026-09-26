@@ -1,7 +1,11 @@
 FROM python:3.14-slim
 
 ENV PYTHONUNBUFFERED=1 \
-    PYTHONDONTWRITEBYTECODE=1
+    PYTHONDONTWRITEBYTECODE=1 \
+    # Bare `celery -A worker.celery_app` drops the cwd from sys.path after app
+    # discovery, so autodiscovered worker.tasks cannot import sibling packages
+    # (api/, graph/, ...). Keep /app importable for every entrypoint.
+    PYTHONPATH=/app
 
 WORKDIR /app
 

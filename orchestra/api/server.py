@@ -59,6 +59,7 @@ async def shutdown() -> None:
 
 class TaskRequest(BaseModel):
     task_description: str
+    user_id: Optional[str] = None
 
 
 class TaskResponse(BaseModel):
@@ -70,7 +71,7 @@ class TaskResponse(BaseModel):
 async def create_task(request: TaskRequest):
     """Enqueue a task on Celery and return immediately (FastAPI never blocks)."""
     task_id = uuid.uuid4()
-    await repository.create_task(pool, task_id, request.task_description)
+    await repository.create_task(pool, task_id, request.task_description, request.user_id)
     run_task.delay(str(task_id), request.task_description)
     return TaskResponse(task_id=str(task_id), status="queued")
 

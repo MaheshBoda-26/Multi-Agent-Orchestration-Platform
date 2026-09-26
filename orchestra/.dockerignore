@@ -1,0 +1,16 @@
+# Build-context exclusions: the image ships only what the app needs at runtime.
+.git
+.venv
+__pycache__
+*.py[cod]
+.pytest_cache
+.mypy_cache
+.ruff_cache
+workspaces
+evals/output
+security/output
+tests
+docs
+.prompt-cache
+.env
+.env.local
