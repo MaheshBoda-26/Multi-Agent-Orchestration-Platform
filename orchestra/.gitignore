@@ -13,3 +13,8 @@ __pycache__/
 
 # OS noise
 .DS_Store
+
+# Per-task tool workspaces and generated eval output
+workspaces/
+evals/output/*
+!evals/output/.gitkeep

@@ -1,0 +1,18 @@
+# Model routing per role (locked decision: OpenRouter, no hard-coded models
+# anywhere else in the codebase). Roles fall back to `default`.
+default: "meta-llama/llama-3.3-70b-instruct"
+roles:
+  supervisor: "anthropic/claude-3.5-sonnet"
+  reviewer: "anthropic/claude-3.5-sonnet"
+  specialist: "openai/gpt-4o-mini"
+  extractor: "openai/gpt-4o-mini"
+  judge: "openai/gpt-4o-mini"
+  cheap: "meta-llama/llama-3.3-70b-instruct"
+
+# USD per 1M tokens: [prompt, completion]. Used to price runs for cost tracking
+# and the eval harness; keep in sync with OpenRouter's published prices.
+costs:
+  "anthropic/claude-3.5-sonnet": [3.0, 15.0]
+  "openai/gpt-4o-mini": [0.15, 0.60]
+  "meta-llama/llama-3.3-70b-instruct": [0.23, 0.40]
+  default: [0.50, 1.50]

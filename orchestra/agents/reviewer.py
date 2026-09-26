@@ -40,7 +40,7 @@ class ReviewerAgent:
             "'escalate' if fundamentally flawed. If retry, include specific retry instructions."
         )
         
-        result = await self.llm.complete_structured(prompt, ReviewResult)
+        result = await self.llm.complete_structured(prompt, ReviewResult, role="reviewer")
         
         # Safety check: if LLM returns decision that doesn't match scores, override
         if result.decision == "accept" and result.scores.overall() < self.threshold:

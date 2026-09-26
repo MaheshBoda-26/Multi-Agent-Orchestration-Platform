@@ -58,7 +58,7 @@ class SupervisorAgent:
             "and any dependencies between tasks. Return the plan in structured JSON format."
         )
 
-        plan = await self.llm.complete_structured(prompt, Plan)
+        plan = await self.llm.complete_structured(prompt, Plan, role="supervisor")
         logger.info(
             "Supervisor created plan with %s subtasks (confidence=%.2f)",
             len(plan.tasks), plan.confidence,

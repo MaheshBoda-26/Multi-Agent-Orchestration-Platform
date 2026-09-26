@@ -933,6 +933,7 @@ dependencies = [
     { name = "pytest" },
     { name = "pytest-asyncio" },
     { name = "python-multipart" },
+    { name = "pyyaml" },
     { name = "tavily-python" },
     { name = "uvicorn" },
 ]
@@ -962,6 +963,7 @@ requires-dist = [
     { name = "pytest", specifier = ">=9.1.1" },
     { name = "pytest-asyncio", specifier = ">=1.4.0" },
     { name = "python-multipart", specifier = ">=0.0.32" },
+    { name = "pyyaml", specifier = ">=6.0.3" },
     { name = "tavily-python", specifier = ">=0.8.4" },
     { name = "uvicorn", specifier = ">=0.53.0" },
 ]

@@ -85,6 +85,8 @@ class SpecialistAgent:
             turn = await self.llm.complete_structured(
                 self._build_prompt(task_description, context, observations),
                 SpecialistTurn,
+                role="specialist",
+                model=self.config.model_override,
             )
             if turn.final_answer:
                 return turn.final_answer
