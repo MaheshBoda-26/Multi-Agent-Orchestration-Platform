@@ -108,3 +108,25 @@ synchronous interface, and lint/type/CI tooling was configured but empty.
 - **`set_task_status` casts `$2`.** asyncpg inferred conflicting types for a
   parameter used both as the assigned status column and in a comparison;
   `$2::varchar` / `$2::text` fixes it.
+
+## 2026-09-26 — Observability phase
+
+- **Spans are owned by migration 004.** The exporter no longer creates the
+  table at runtime; schema changes go through the migration runner like every
+  other table.
+- **The span exporter owns its asyncpg pool.** asyncpg pools are bound to the
+  event loop that created them; borrowing the app's pool from the exporter's
+  thread loop raised `InterfaceError: another operation is in progress` and
+  silently dropped every span. `PostgresSpanExporter(dsn)` now creates its own
+  pool inside its loop; the injectable pool argument exists only for tests.
+- **One cost source of truth.** `observability/cost.py` and its `task_costs`
+  table are deleted; per-run totals live in `run_metadata` and per-call detail
+  lives in `spans`. `RecordingLLMProvider` collects usage, and providers expose
+  `last_usage` so structured calls (which may include a repair retry) can be
+  priced.
+- **The OTLP tracing manager is deleted.** Decision D6 says the custom Postgres
+  exporter is the only span sink; `observability/setup.py` configures it once
+  per process from a DSN.
+- **Trace and cost endpoints added:** `GET /tasks/{id}/trace` returns the span
+  tree (every agent, tool and model call) and `GET /tasks/{id}/cost` returns the
+  run rollup.

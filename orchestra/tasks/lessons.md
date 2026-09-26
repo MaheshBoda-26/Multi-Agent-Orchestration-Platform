@@ -21,3 +21,9 @@ Append-only. One entry per correction or root cause, dated.
 - **Worker readiness checks must match the log level.** `--loglevel=warning`
   filters out the `ready.` line, so a test that waits for it times out; log at
   `info` or detect readiness another way.
+- **asyncpg pools are loop-bound.** An exporter on its own thread loop cannot
+  borrow the app's pool: asyncpg raises `InterfaceError: another operation is
+  in progress` and every span is lost. Give exporters a DSN and their own pool.
+- **A mocked pool hides loop-affinity bugs.** The exporter's unit test passed
+  while production dropped 100% of spans; the DB-backed trace test caught it.
+  Keep one end-to-end assertion per exporter or writer.

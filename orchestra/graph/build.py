@@ -11,6 +11,7 @@ from graph.state import GraphState, SubtaskResult
 from graph.validate import validate_plan
 from graph.hitl import hitl_manager
 from llm.provider import LLMProvider
+from observability.spans import span
 
 logger = logging.getLogger(__name__)
 
@@ -83,18 +84,19 @@ class OrchestraGraph:
 
     async def node_supervisor(self, state: GraphState) -> Dict[str, Any]:
         description = state["task_description"]
-        plan = await self.supervisor.create_plan(description)
+        with span("supervisor.plan", task_id=state.get("task_id")):
+            plan = await self.supervisor.create_plan(description)
 
-        errors = validate_plan([t.model_dump() for t in plan.tasks])
-        if errors:
-            logger.warning("Invalid plan (%s); regenerating once", errors)
-            plan = await self.supervisor.create_plan(description, validation_errors=errors)
             errors = validate_plan([t.model_dump() for t in plan.tasks])
             if errors:
-                return {
-                    "plan": [],
-                    "shared_context": f"Planning failed validation: {errors}",
-                }
+                logger.warning("Invalid plan (%s); regenerating once", errors)
+                plan = await self.supervisor.create_plan(description, validation_errors=errors)
+                errors = validate_plan([t.model_dump() for t in plan.tasks])
+                if errors:
+                    return {
+                        "plan": [],
+                        "shared_context": f"Planning failed validation: {errors}",
+                    }
 
         if self.hitl_enabled and plan.confidence < LOW_CONFIDENCE_THRESHOLD:
             await hitl_manager.pause_for_approval(
@@ -191,7 +193,8 @@ class OrchestraGraph:
 
         task_id = payload.get("task_id", "unknown")
         executor = self._make_executor(task_id, subtask_id, specialist_name)
-        result = await self._run_specialist(agent, task, context, subtask_id, executor)
+        with span("specialist.run", subtask_id=subtask_id, specialist=specialist_name):
+            result = await self._run_specialist(agent, task, context, subtask_id, executor)
         return {"results": {subtask_id: result}}
 
     def _make_executor(self, task_id: str, subtask_id: str, specialist: str) -> Any:
@@ -277,11 +280,12 @@ class OrchestraGraph:
             if result.status != "success":
                 continue  # accepted/retry/escalate already decided
 
-            review = await self.reviewer.review(
-                task_description=task["description"],
-                specialist_output=result.content,
-                specialist_role=task["specialist"],
-            )
+            with span("reviewer.review", subtask_id=subtask_id, specialist=task["specialist"]):
+                review = await self.reviewer.review(
+                    task_description=task["description"],
+                    specialist_output=result.content,
+                    specialist_role=task["specialist"],
+                )
             feedback[subtask_id] = review.feedback
             attempts_made = attempts.get(subtask_id, 0) + 1
             attempt_updates[subtask_id] = attempts_made
@@ -332,8 +336,9 @@ class OrchestraGraph:
             context += f"\n\nNote: these subtasks did not complete successfully: {notes}"
 
         writer = self.specialists["writer"]
-        final = await writer.run(
-            task_description="Synthesize the final response from subtask results.",
-            context=context,
-        )
+        with span("synthesize"):
+            final = await writer.run(
+                task_description="Synthesize the final response from subtask results.",
+                context=context,
+            )
         return {"final_response": final}

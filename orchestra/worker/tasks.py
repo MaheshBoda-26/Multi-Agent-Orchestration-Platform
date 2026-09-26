@@ -20,7 +20,11 @@ from api import repository, run_metadata
 from graph.build import OrchestraGraph
 from graph.checkpointer import create_checkpointer
 from llm.factory import build_provider
+from llm.recording import RecordingLLMProvider, RunRecorder
 from migrations import run_migrations
+from observability.context import set_current_task_id
+from observability.setup import configure_tracing, flush_tracing
+from observability.spans import span
 from tools.bootstrap import build_tool_registry
 from tools.execution import execute_tool
 from worker.celery_app import celery_app
@@ -66,6 +70,8 @@ async def _run_task_async(task_id: str, description: str) -> None:
     try:
         pool = await asyncpg.create_pool(_database_url(), min_size=1, max_size=5)
         await run_migrations(pool)
+        configure_tracing(_database_url())
+        set_current_task_id(task_id)
 
         task_uuid = uuid.UUID(task_id)
         row = await repository.get_task(pool, task_uuid)
@@ -77,8 +83,10 @@ async def _run_task_async(task_id: str, description: str) -> None:
         # Every task gets its own jailed workspace, registry and audited executor.
         registry = build_tool_registry(task_id, search_backend=os.getenv("SEARCH_BACKEND"))
         tool_executor = functools.partial(execute_tool, registry, pool, task_id=task_id)
+        recorder = RunRecorder()
+        provider = RecordingLLMProvider(build_provider(), recorder)
         graph = OrchestraGraph(
-            build_provider(), checkpointer=checkpointer, tool_executor=tool_executor
+            provider, checkpointer=checkpointer, tool_executor=tool_executor
         )
         config: RunnableConfig = {"configurable": {"thread_id": task_id}}
 
@@ -91,15 +99,17 @@ async def _run_task_async(task_id: str, description: str) -> None:
             await run_metadata.start_run(pool, run_id, task_uuid, description)
 
         started = time.monotonic()
-        if has_checkpoint:
-            logger.info("Resuming task %s from its last checkpoint", task_id)
-            # durability="sync" commits every super-step before the next one
-            # starts; the default (async) loses recent writes on SIGKILL.
-            final_state = await graph.workflow.ainvoke(None, config, durability="sync")
-        else:
-            final_state = await graph.workflow.ainvoke(
-                initial_state(task_id, description), config, durability="sync"
-            )
+        with span("task.run"):
+            if has_checkpoint:
+                logger.info("Resuming task %s from its last checkpoint", task_id)
+                # durability="sync" commits every super-step before the next one
+                # starts; the default (async) loses recent writes on SIGKILL.
+                final_state = await graph.workflow.ainvoke(None, config, durability="sync")
+            else:
+                final_state = await graph.workflow.ainvoke(
+                    initial_state(task_id, description), config, durability="sync"
+                )
+        flush_tracing()
 
         plan = final_state.get("plan") or []
         if plan:
@@ -112,8 +122,11 @@ async def _run_task_async(task_id: str, description: str) -> None:
         })
         await run_metadata.complete_run(
             pool, run_id,
+            prompt_tokens=recorder.prompt_tokens,
+            completion_tokens=recorder.completion_tokens,
+            cost_usd=recorder.cost_usd,
             latency_ms=int((time.monotonic() - started) * 1000),
-            model_breakdown={},
+            model_breakdown=recorder.model_breakdown,
         )
         logger.info("Task %s completed in %.2fs", task_id, time.monotonic() - started)
     except Exception as exc:
@@ -129,6 +142,7 @@ async def _run_task_async(task_id: str, description: str) -> None:
                 logger.exception("Could not record the failure for task %s", task_id)
         raise
     finally:
+        set_current_task_id(None)
         if ckpt_pool is not None:
             await ckpt_pool.close()
         if pool is not None:

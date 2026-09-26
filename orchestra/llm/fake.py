@@ -2,7 +2,7 @@ import asyncio
 import json
 import os
 import signal
-from typing import Any, Dict, Type, TypeVar
+from typing import Any, Dict, Optional, Type, TypeVar
 from pydantic import BaseModel
 from .provider import LLMProvider, LLMResponse
 
@@ -73,6 +73,8 @@ class FakeProvider(LLMProvider):
         self.scripted_responses: Dict[str, str] = {}
         self.default_responses: Dict[str, str] = dict(DEFAULT_RESPONSES)
         self.default_response = "This is a fake response from the FakeProvider."
+        # Read by RecordingLLMProvider after complete_structured calls.
+        self.last_usage: Optional[LLMResponse] = None
 
     async def _before_call(self, prompt: str) -> None:
         """Optional test hooks driven by env vars.
@@ -119,17 +121,26 @@ class FakeProvider(LLMProvider):
     async def complete(self, prompt: str, **kwargs: Any) -> LLMResponse:
         await self._before_call(prompt)
         content = self._find_matching_response(prompt)
-        return LLMResponse(
+        response = LLMResponse(
             content=content,
             tokens_prompt=len(prompt) // 4,
             tokens_completion=len(content) // 4,
             cost=0.0,
             model="fake-model-v1",
         )
+        self.last_usage = response
+        return response
 
     async def complete_structured(self, prompt: str, response_model: Type[T], **kwargs: Any) -> T:
         await self._before_call(prompt)
         response_text = self._find_matching_response(prompt)
+        self.last_usage = LLMResponse(
+            content=response_text,
+            tokens_prompt=len(prompt) // 4,
+            tokens_completion=len(response_text) // 4,
+            cost=0.0,
+            model="fake-model-v1",
+        )
         try:
             return response_model.model_validate_json(response_text)
         except Exception:

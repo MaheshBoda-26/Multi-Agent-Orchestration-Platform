@@ -3,7 +3,7 @@ import json
 import logging
 import threading
 from datetime import datetime, timezone
-from typing import Sequence
+from typing import Any, Optional, Sequence
 
 import asyncpg
 from opentelemetry.sdk.trace import ReadableSpan
@@ -20,8 +20,12 @@ class PostgresSpanExporter(SpanExporter):
     event loop owned by this exporter instead of being awaited in place.
     """
 
-    def __init__(self, pool: asyncpg.Pool):
-        self.pool = pool
+    def __init__(self, dsn: str, pool: Any = None):
+        # asyncpg pools are bound to the loop that created them, so the
+        # exporter must own a pool created inside its own loop. `pool` exists
+        # only so unit tests can inject a fake; production passes a DSN.
+        self.dsn = dsn
+        self._pool: Optional[asyncpg.Pool] = pool
         self._loop = asyncio.new_event_loop()
         self._thread = threading.Thread(target=self._run_loop, name="span-exporter", daemon=True)
         self._thread.start()
@@ -39,10 +43,16 @@ class PostgresSpanExporter(SpanExporter):
             return SpanExportResult.FAILURE
 
     async def _export(self, spans: Sequence[ReadableSpan]) -> SpanExportResult:
-        async with self.pool.acquire() as conn:
+        pool = await self._get_pool()
+        async with pool.acquire() as conn:
             for span in spans:
                 await self._insert_span(conn, span)
         return SpanExportResult.SUCCESS
+
+    async def _get_pool(self) -> Any:
+        if self._pool is None:
+            self._pool = await asyncpg.create_pool(self.dsn, min_size=1, max_size=2)
+        return self._pool
 
     async def _insert_span(self, conn: asyncpg.Connection, span: ReadableSpan) -> None:
         attributes = dict(span.attributes) if span.attributes else {}
@@ -96,6 +106,13 @@ class PostgresSpanExporter(SpanExporter):
         )
 
     def shutdown(self) -> None:
+        if self._pool is not None and self.dsn:
+            try:
+                asyncio.run_coroutine_threadsafe(
+                    self._pool.close(), self._loop
+                ).result(timeout=5)
+            except Exception:
+                logger.exception("Failed to close the span exporter pool")
         self._loop.call_soon_threadsafe(self._loop.stop)
         self._thread.join(timeout=5)
 
@@ -103,23 +120,5 @@ class PostgresSpanExporter(SpanExporter):
         return True
 
 
-async def init_span_table(pool: asyncpg.Pool) -> None:
-    """Initialize the spans table in Postgres."""
-    async with pool.acquire() as conn:
-        await conn.execute("""
-            CREATE TABLE IF NOT EXISTS spans (
-                trace_id VARCHAR(32) NOT NULL,
-                span_id VARCHAR(16) NOT NULL,
-                parent_span_id VARCHAR(16),
-                name VARCHAR(255),
-                kind VARCHAR(50),
-                status VARCHAR(50),
-                start_time TIMESTAMP WITH TIME ZONE,
-                end_time TIMESTAMP WITH TIME ZONE,
-                attributes JSONB,
-                events JSONB,
-                resource JSONB,
-                PRIMARY KEY (trace_id, span_id)
-            );
-            CREATE INDEX IF NOT EXISTS idx_spans_trace_id ON spans(trace_id);
-        """)
+# The spans table is owned by migrations/004_spans.sql; nothing creates it at
+# runtime so the schema is versioned with every other table.

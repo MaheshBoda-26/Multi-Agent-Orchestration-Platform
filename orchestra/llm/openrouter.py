@@ -43,6 +43,8 @@ class OpenRouterProvider(LLMProvider):
         ).rstrip("/")
         self.routing = routing or load_routing()
         self._client = client
+        # Last call's usage, read by RecordingLLMProvider for structured calls.
+        self.last_usage: Optional[LLMResponse] = None
 
     # ------------------------------------------------------------------ pricing
 
@@ -100,8 +102,8 @@ class OpenRouterProvider(LLMProvider):
             "model": model,
             "messages": [{"role": "user", "content": prompt}],
         }
-        response = await self._post(body)
-        data = response.json()
+        http_response = await self._post(body)
+        data = http_response.json()
 
         choices = data.get("choices") or []
         if not choices:
@@ -110,13 +112,15 @@ class OpenRouterProvider(LLMProvider):
         usage = data.get("usage") or {}
         prompt_tokens = int(usage.get("prompt_tokens", 0))
         completion_tokens = int(usage.get("completion_tokens", 0))
-        return LLMResponse(
+        llm_response = LLMResponse(
             content=content,
             tokens_prompt=prompt_tokens,
             tokens_completion=completion_tokens,
             cost=self.cost_for(model, prompt_tokens, completion_tokens),
             model=model,
         )
+        self.last_usage = llm_response
+        return llm_response
 
     async def complete_structured(
         self, prompt: str, response_model: Type[T], **kwargs: Any

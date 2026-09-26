@@ -12,6 +12,7 @@ from typing import Any, Dict, Optional
 
 import asyncpg
 
+from observability.spans import span
 from tools.permissions import permission_manager
 from tools.registry import ToolRegistry, ToolResult
 
@@ -88,7 +89,8 @@ async def execute_tool(
         raise ApprovalRequired(tool_name, args, signature)
 
     start = time.monotonic()
-    result = await registry.execute(tool_name, specialist, **args)
+    with span("tool.call", tool_name=tool_name, specialist=specialist, subtask_id=subtask_id):
+        result = await registry.execute(tool_name, specialist, **args)
     latency_ms = int((time.monotonic() - start) * 1000)
 
     if pool is not None:

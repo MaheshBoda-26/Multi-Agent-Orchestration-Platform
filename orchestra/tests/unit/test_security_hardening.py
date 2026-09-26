@@ -84,7 +84,7 @@ def _pool_returning(conn):
 def test_span_exporter_is_synchronous():
     """export() must return a SpanExportResult, not a coroutine (OTel calls it sync)."""
     conn = AsyncMock()
-    exporter = PostgresSpanExporter(_pool_returning(conn))
+    exporter = PostgresSpanExporter("", pool=_pool_returning(conn))
     try:
         provider = TracerProvider()
         tracer = provider.get_tracer("test")
