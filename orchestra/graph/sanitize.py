@@ -22,6 +22,15 @@ _INSTRUCTION_PATTERNS = [
     re.compile(r"\b(skip|disable|bypass)\s+(the\s+)?(human\s+)?approval\b", re.I),
     re.compile(r"\breveal\b.*\b(api[_\s]?key|token|password|secret)\b", re.I),
     re.compile(r"\b(include|print|repeat|send)\b.*\b(api[_\s]?key|token|password|secret|cookie)\b", re.I),
+    # Instructions disguised as annotations aimed at the model ("note to the
+    # model", "instructions to AI", "annotation for the translator").
+    re.compile(
+        r"\b(note|annotation|directive|instruction|message|reminder|prompt)s?"
+        r"\s+(to|for)\s+(the\s+)?(model|ai|assistant|translator|agent)\b",
+        re.I,
+    ),
+    re.compile(r"\b(model|ai)[\s_-](directive|instruction|mode|override)s?\b", re.I),
+    re.compile(r"\b(hidden|secret|emergency)\s+(directive|instruction)\b", re.I),
 ]
 
 _DATA_FRAME_HEADER = (

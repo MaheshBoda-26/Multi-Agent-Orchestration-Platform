@@ -9,6 +9,7 @@ from typing import Any, Awaitable, Callable, Dict, List, Optional
 
 from pydantic import BaseModel, Field
 
+from graph.sanitize import defense_system_note, sanitize_tool_output
 from llm.provider import LLMProvider
 from tools.registry import ToolResult
 
@@ -60,6 +61,7 @@ class SpecialistAgent:
         prompt = (
             f"Role: {self.config.role}\n"
             f"Instructions: {self.config.instructions}\n\n"
+            f"{defense_system_note()}\n\n"
             f"Available tools:\n{self._tool_menu()}\n\n"
             f"Context: {context}\n"
             f"Task: {task_description}\n"
@@ -105,7 +107,18 @@ class SpecialistAgent:
             return f"Tool {tool_call.tool} is not available in this run."
         result = await executor(tool_call)
         body = result.content if result.status == "success" else (result.error or "")
-        return f"Tool {tool_call.tool} -> {result.status}\n{body}".strip()
+        status = f"Tool {tool_call.tool} -> {result.status}\n"
+        if result.status != "success":
+            # Errors are system-generated; keep them legible, unframed.
+            return (status + body).strip()
+        sanitized = sanitize_tool_output(tool_call.tool, body)
+        if sanitized["flagged"]:
+            logger.warning(
+                "Tool %s returned instruction-like content: %s",
+                tool_call.tool,
+                "; ".join(sanitized["suspicious"][:3]),
+            )
+        return (status + sanitized["content"]).strip()
 
 
 # Definitions for the 4 required specialists

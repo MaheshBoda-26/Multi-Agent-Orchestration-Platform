@@ -18,3 +18,4 @@ __pycache__/
 workspaces/
 evals/output/*
 !evals/output/.gitkeep
+security/output/
