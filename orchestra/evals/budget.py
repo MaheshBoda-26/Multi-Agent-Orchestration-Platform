@@ -5,7 +5,7 @@ source). The budget charges every response's token usage before the next task
 starts and aborts the current config with a clear error once the running total
 crosses the cap, so a runaway matrix can never overspend.
 """
-from typing import Dict, Optional, Tuple
+from typing import Dict, Tuple
 
 
 class BudgetExceeded(RuntimeError):

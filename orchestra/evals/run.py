@@ -11,15 +11,19 @@ attribute quality to each: reviewer loop, parallel dispatch, memory, HITL.
 import argparse
 import asyncio
 import json
+import os
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import yaml
 
+from evals.budget import Budget, BudgetExceeded, estimate_cost
 from evals.build_task_set import EvalTask, load_task_set
+from evals.cache import CachedProvider, LLMCache
 from evals.graders import DeterministicGrader, GradeResult
 from llm.factory import build_provider
+from llm.routing import load_routing
 
 CONFIGS_DIR = Path(__file__).resolve().parent / "configs"
 RESULTS_DIR = Path(__file__).resolve().parent / "output"
@@ -35,7 +39,11 @@ def available_configs() -> List[str]:
 
 
 async def run_single_task(
-    task: EvalTask, config: Dict[str, Any], provider: Any
+    task: EvalTask,
+    config: Dict[str, Any],
+    provider: Any,
+    budget: Optional[Budget] = None,
+    per_million: Tuple[float, float] = (0.0, 0.0),
 ) -> GradeResult:
     """Run one task through a (config-shaped) graph and grade the response.
 
@@ -50,7 +58,18 @@ async def run_single_task(
             f"Task: {task.instruction}\n\nComplete the task.",
             role="specialist",
         )
+        if budget is not None:
+            # Only routing-aware (live) providers charge the budget; the fake
+            # provider's synthetic token counts are meaningless to price.
+            # hasattr works through CachedProvider's __getattr__ forwarding.
+            if hasattr(provider, "model_for"):
+                cost = response.cost or estimate_cost(
+                    response.tokens_prompt, response.tokens_completion, per_million
+                )
+                budget.charge(cost, task.id)
         grade = await grader.grade(task.id, task.instruction, response.content)
+    except BudgetExceeded:
+        raise
     except Exception as exc:  # noqa: BLE001 - an eval task may fail hard
         grade = GradeResult(
             task_id=task.id,
@@ -69,10 +88,22 @@ async def run_config(
     provider: Any,
     tasks: Optional[List[EvalTask]] = None,
     pool: Any = None,
+    budget: Optional[Budget] = None,
+    use_cache: bool = True,
 ) -> Dict[str, Any]:
     """Run one config once over the task set and persist the results."""
     config = load_config(config_name)
     tasks = tasks or load_task_set()
+    routing = load_routing()
+    per_million = routing.costs_for(
+        routing.model_for("specialist")
+    )
+
+    # DB-backed dedup: identical (model, role, prompt) calls across configs and
+    # repeats are served from llm_cache, so repeats cost (almost) nothing.
+    if pool is not None and use_cache and not isinstance(provider, CachedProvider):
+        provider = CachedProvider(provider, LLMCache(pool))
+
     run_id: Optional[int] = None
 
     if pool is not None:
@@ -89,8 +120,16 @@ async def run_config(
             )
 
     grades = []
+    aborted: Optional[str] = None
     for task in tasks:
-        grade = await run_single_task(task, config, provider)
+        try:
+            grade = await run_single_task(
+                task, config, provider, budget=budget, per_million=per_million
+            )
+        except BudgetExceeded as exc:
+            aborted = str(exc)
+            print(f"{config_name} repeat {repeat}: ABORTED - {exc}")
+            break
         grades.append(grade.model_dump(mode="json"))
         if pool is not None and run_id is not None:
             async with pool.acquire() as conn:
@@ -116,6 +155,8 @@ async def run_config(
         "mean_score": (
             sum(g["score"] for g in grades) / len(grades) if grades else 0.0
         ),
+        "aborted": aborted,
+        "budget_spent_usd": round(budget.spent_usd, 4) if budget else 0.0,
     }
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
     output = RESULTS_DIR / f"{config_name}-r{repeat}.json"
@@ -128,15 +169,23 @@ async def run_matrix(
     repeats: int = 3,
     provider: Any = None,
     pool: Any = None,
+    budget_max: Optional[float] = None,
 ) -> List[Dict[str, Any]]:
-    """Run every requested config x repeat; defaults to all configs x3."""
+    """Run every requested config x repeat; defaults to all configs x3.
+
+    With ``budget_max`` set, each config gets its own Budget: a config that
+    trips the cap is aborted and the matrix moves on to the next one.
+    """
     config_names = config_names or available_configs()
     provider = provider or build_provider()
     tasks = load_task_set()
     summaries = []
     for name in config_names:
         for repeat in range(repeats):
-            summaries.append(await run_config(name, repeat, provider, tasks, pool))
+            budget = Budget(budget_max) if budget_max else None
+            summaries.append(
+                await run_config(name, repeat, provider, tasks, pool, budget)
+            )
             print(f"{name} repeat {repeat}: {summaries[-1]['passed']}/{len(tasks)} passed")
     return summaries
 
@@ -145,6 +194,16 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run the eval matrix")
     parser.add_argument("--configs", nargs="*", help="config names (default: all)")
     parser.add_argument("--repeats", type=int, default=3)
+    parser.add_argument(
+        "--provider", choices=["fake", "openrouter"], default=None,
+        help="override LLM_PROVIDER for this run",
+    )
+    parser.add_argument(
+        "--budget-max", type=float, default=None,
+        help="USD cap per config; the config aborts when crossed (e.g. 40)",
+    )
     args = parser.parse_args()
 
-    asyncio.run(run_matrix(args.configs, args.repeats))
+    if args.provider:
+        os.environ["LLM_PROVIDER"] = args.provider
+    asyncio.run(run_matrix(args.configs, args.repeats, budget_max=args.budget_max))
