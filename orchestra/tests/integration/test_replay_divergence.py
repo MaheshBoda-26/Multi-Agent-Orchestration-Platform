@@ -40,7 +40,7 @@ class DescriptionSensitiveProvider(FakeProvider):
     async def complete_structured(self, prompt, response_model, **kwargs):
         if "Orchestra Supervisor" in prompt:
             line = next(
-                (l for l in prompt.splitlines() if l.startswith("Task: ")), "Task:"
+                (ln for ln in prompt.splitlines() if ln.startswith("Task: ")), "Task:"
             )
             description = line.removeprefix("Task: ").strip()
             return Plan(
