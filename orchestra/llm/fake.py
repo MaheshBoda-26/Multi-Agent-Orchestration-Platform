@@ -54,6 +54,11 @@ DEFAULT_RESPONSES: Dict[str, str] = {
         "suggested_approach": "No relevant past tasks found. Proceed with standard planning.",
         "known_constraints": [],
     }),
+    # Specialist tool loop: answer directly, no tools needed.
+    "Role:": json.dumps({
+        "thought": "I can answer this directly.",
+        "final_answer": "This is a fake response from the FakeProvider.",
+    }),
 }
 
 

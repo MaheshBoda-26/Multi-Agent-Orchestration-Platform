@@ -34,9 +34,13 @@ class OrchestraGraph:
         llm: LLMProvider,
         hitl_enabled: Optional[bool] = None,
         checkpointer: Any = None,
+        tool_executor: Any = None,
     ):
         self.llm = llm
         self.checkpointer = checkpointer
+        # Async callable(subtask_id=, specialist=, tool_name=, arguments=,
+        # approved_signature=) -> ToolResult, provided by the worker.
+        self.tool_executor = tool_executor
         # interrupt() needs a checkpointer to pause and resume. Default to on
         # whenever one is attached; callers can still force it off for tests.
         self.hitl_enabled = bool(checkpointer) if hitl_enabled is None else hitl_enabled
@@ -185,16 +189,39 @@ class OrchestraGraph:
         if feedback:
             context = f"{context}\n\nReviewer feedback from the previous attempt:\n{feedback}"
 
-        result = await self._run_specialist(agent, task, context, subtask_id)
+        task_id = payload.get("task_id", "unknown")
+        executor = self._make_executor(task_id, subtask_id, specialist_name)
+        result = await self._run_specialist(agent, task, context, subtask_id, executor)
         return {"results": {subtask_id: result}}
 
+    def _make_executor(self, task_id: str, subtask_id: str, specialist: str) -> Any:
+        """Bind the worker's tool executor to this subtask and specialist."""
+        if self.tool_executor is None:
+            return None
+
+        async def executor(tool_call: Any) -> Any:
+            return await self.tool_executor(
+                subtask_id=subtask_id,
+                specialist=specialist,
+                tool_name=tool_call.tool,
+                arguments=tool_call.arguments,
+            )
+
+        return executor
+
     async def _run_specialist(
-        self, agent: SpecialistAgent, task: Dict[str, Any], context: str, subtask_id: str
+        self,
+        agent: SpecialistAgent,
+        task: Dict[str, Any],
+        context: str,
+        subtask_id: str,
+        executor: Any = None,
     ) -> SubtaskResult:
         try:
             content = await agent.run(
                 task_description=task["description"],
                 context=context,
+                executor=executor,
             )
             return SubtaskResult(subtask_id=subtask_id, content=content)
         except Exception as exc:  # tool/LLM failures are typed results, not crashes

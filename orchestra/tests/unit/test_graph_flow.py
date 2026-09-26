@@ -115,9 +115,9 @@ async def test_dependent_subtasks_run_once_after_dependencies_are_accepted():
     for name, agent in graph.specialists.items():
         original = agent.run
 
-        async def wrapped(task_description, context, _name=name, _original=original):
+        async def wrapped(task_description, context, executor=None, _name=name, _original=original):
             calls.append(_name)
-            return await _original(task_description, context)
+            return await _original(task_description, context, executor=executor)
 
         agent.run = wrapped
 
