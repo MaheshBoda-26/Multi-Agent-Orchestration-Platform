@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Orchestra - Trace Explorer (static snapshot)</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; }
+.container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; }
+h1 { color: #1a1a1a; font-size: 28px; }
+.header-controls { display: flex; align-items: center; gap: 16px; }
+.muted { color: #999; font-size: 13px; }
+.refresh-btn { padding: 10px 20px; background: #0066cc; color: white; border: none; border-radius: 6px; cursor: pointer; }
+.refresh-btn:hover { background: #0052a3; }
+
+.approval-card { background: white; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); margin-bottom: 20px; overflow: hidden; }
+.card-header { padding: 16px 20px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center; }
+.escalation-badge { padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; text-transform: uppercase; }
+.escalation-badge.notify { background: #e3f2fd; color: #1565c0; }
+.escalation-badge.approve_action { background: #fff3e0; color: #e65100; }
+.escalation-badge.approve_plan { background: #fce4ec; color: #c2185b; }
+.escalation-badge.take_over { background: #fde0e0; color: #b71c1c; }
+
+.card-body { padding: 20px; }
+.detail-row { display: flex; margin-bottom: 12px; }
+.detail-label { width: 150px; font-weight: 500; color: #666; }
+.detail-value { flex: 1; color: #333; }
+.context-box { background: #fafafa; border: 1px solid #eee; border-radius: 6px; padding: 16px; margin-top: 16px; max-height: 300px; overflow: auto; }
+.context-box pre { white-space: pre-wrap; font-family: monospace; font-size: 13px; color: #444; }
+
+.actions { display: flex; gap: 12px; margin-top: 20px; padding-top: 20px; border-top: 1px solid #eee; flex-wrap: wrap; }
+.btn { padding: 10px 24px; border-radius: 6px; font-weight: 500; cursor: pointer; border: none; font-size: 14px; }
+.btn:disabled { opacity: 0.6; cursor: wait; }
+.btn-primary { background: #0066cc; color: white; }
+.btn-primary:hover { background: #0052a3; }
+.btn-danger { background: #dc3545; color: white; }
+.btn-danger:hover { background: #c82333; }
+.btn-secondary { background: #6c757d; color: white; }
+.btn-secondary:hover { background: #5a6268; }
+.btn-success { background: #28a745; color: white; }
+.btn-success:hover { background: #218838; }
+
+.mod-plan { display: none; margin-top: 16px; padding: 16px; background: #f8f9fa; border-radius: 6px; }
+.mod-plan textarea { width: 100%; min-height: 160px; padding: 12px; border: 1px solid #ddd; border-radius: 4px; font-family: monospace; font-size: 13px; }
+.mod-plan .form-actions { display: flex; gap: 12px; margin-top: 12px; }
+.mod-plan .hint { color: #888; font-size: 12px; margin-top: 6px; }
+
+.clarify-log { display: none; margin-top: 16px; background: #f8f9fa; border-radius: 6px; padding: 16px; }
+.clarify-log .entry { margin-bottom: 12px; }
+.clarify-log .q { font-weight: 600; color: #1a1a1a; }
+.clarify-log .a { color: #444; margin-left: 16px; white-space: pre-wrap; }
+.clarify-form { display: flex; gap: 12px; margin-top: 8px; }
+.clarify-form textarea { flex: 1; min-height: 60px; padding: 12px; border: 1px solid #ddd; border-radius: 4px; font-family: inherit; }
+
+.status-note { margin-top: 12px; font-size: 13px; color: #28a745; }
+.error-note { margin-top: 12px; font-size: 13px; color: #dc3545; }
+
+.empty-state { text-align: center; padding: 60px 20px; color: #999; }
+.empty-state h3 { margin-bottom: 8px; color: #666; }
+
+.task-link { color: #0066cc; text-decoration: none; }
+.task-link:hover { text-decoration: underline; }
+
+/* Trace explorer layout (Phase 8, Task 44). */
+.explorer-layout { display: flex; gap: 20px; align-items: flex-start; }
+.task-list { width: 320px; flex-shrink: 0; background: white; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); padding: 16px; }
+.task-list h2 { font-size: 16px; margin-bottom: 12px; color: #1a1a1a; }
+.task-list ul { list-style: none; }
+.task-list li { padding: 10px 12px; border-radius: 6px; cursor: pointer; margin-bottom: 4px; }
+.task-list li:hover { background: #f0f4f8; }
+.task-list li.selected { background: #e3f2fd; }
+.task-list .request { font-size: 13px; color: #333; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.task-list .meta { display: flex; justify-content: space-between; font-size: 11px; color: #999; margin-top: 2px; }
+
+.status-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
+.status-dot.completed { background: #28a745; }
+.status-dot.running, .status-dot.queued { background: #0066cc; }
+.status-dot.awaiting_human { background: #e65100; }
+.status-dot.failed, .status-dot.cancelled { background: #dc3545; }
+
+.task-detail { flex: 1; min-width: 0; }
+.section { background: white; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); padding: 20px; margin-bottom: 20px; }
+.section h2 { font-size: 16px; margin-bottom: 12px; color: #1a1a1a; }
+.section pre { white-space: pre-wrap; font-family: monospace; font-size: 13px; color: #444; max-height: 320px; overflow: auto; }
+
+.span-tree { list-style: none; padding-left: 0; }
+.span-tree ul { list-style: none; padding-left: 20px; border-left: 1px solid #e5e5e5; margin-left: 8px; }
+.span-row { padding: 4px 8px; border-radius: 4px; cursor: pointer; display: flex; gap: 10px; align-items: baseline; }
+.span-row:hover { background: #f0f4f8; }
+.span-name { font-weight: 600; font-size: 13px; color: #1a1a1a; }
+.span-latency { font-size: 11px; color: #888; }
+.span-attrs { display: none; background: #fafafa; border: 1px solid #eee; border-radius: 6px; padding: 10px 12px; margin: 4px 0 8px 28px; font-family: monospace; font-size: 12px; color: #444; white-space: pre-wrap; }
+.span-attrs.open { display: block; }
+
+.task-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+.task-header .request { font-size: 15px; font-weight: 600; color: #1a1a1a; }
+
+.note { background: #fff8e1; border: 1px solid #ffe082; border-radius: 8px; padding: 10px 16px; margin-bottom: 20px; font-size: 13px; color: #7a5c00; }
+</style>
+</head>
+<body>
+<div class="container">
+  <header><h1>Trace Explorer <span class="muted">(static snapshot)</span></h1></header>
+  <div class="note" id="note"></div>
+  <div class="explorer-layout">
+    <aside class="task-list"><h2>Tasks</h2><ul id="tasks"></ul></aside>
+    <main class="task-detail" id="detail"></main>
+  </div>
+</div>
+<script>
+window.__SNAPSHOT__ = {"generated_at": "2026-09-26T20:27:44+05:30", "detail_task_id": "24d80344-3e4e-4453-bb0e-0d20dccfdfd8", "tasks": [{"task_id": "24d80344-3e4e-4453-bb0e-0d20dccfdfd8", "request": "Demo run for user demo-user: research Orchestra's architecture and write a summary.", "status": "completed", "error": null, "created_at": "2026-09-26T14:56:42.742675+00:00", "finished_at": "2026-09-26T14:56:42.895415+00:00"}, {"task_id": "a7b7a72e-433c-4803-b2c4-a46301013b40", "request": "checkpoint debug 2", "status": "running", "error": null, "created_at": "2026-09-26T08:31:14.985593+00:00", "finished_at": null}, {"task_id": "924d09c7-b8ee-4c2a-b646-acc38f8306c6", "request": "checkpoint debug", "status": "running", "error": null, "created_at": "2026-09-26T08:30:36.602439+00:00", "finished_at": null}, {"task_id": "0ab71a4a-a1ce-4426-86c7-b11533f7342d", "request": "threads pool check", "status": "completed", "error": null, "created_at": "2026-09-26T08:25:26.049540+00:00", "finished_at": "2026-09-26T08:25:26.619372+00:00"}, {"task_id": "e5f48a7c-a019-44f9-ba18-f7503474190e", "request": "manual durability debug", "status": "completed", "error": null, "created_at": "2026-09-26T08:24:28.660682+00:00", "finished_at": "2026-09-26T08:29:40.296494+00:00"}, {"task_id": "513119d2-86de-4e10-86f6-0281432010f9", "request": "manual durability debug", "status": "failed", "error": "inconsistent types deduced for parameter $2\nDETAIL:  text versus character varying", "created_at": "2026-09-26T08:23:54.388597+00:00", "finished_at": "2026-09-26T08:23:54.916224+00:00"}, {"task_id": "782c06f9-5979-41e7-995c-9a0ffcbdf234", "request": "manual durability debug", "status": "queued", "error": null, "created_at": "2026-09-26T08:23:13.970816+00:00", "finished_at": null}], "detail": {"task_id": "24d80344-3e4e-4453-bb0e-0d20dccfdfd8", "request": "Demo run for user demo-user: research Orchestra's architecture and write a summary.", "status": "completed", "created_at": "2026-09-26T14:56:42.742675+00:00", "plan": [{"id": "t1", "specialist": "researcher", "description": "Gather information for the request", "dependencies": []}, {"id": "t2", "specialist": "writer", "description": "Write up the final answer", "dependencies": ["t1"]}], "result": {"subtasks": {"t1": {"error": null, "status": "accepted", "content": "This is a fake response from the FakeProvider.", "confidence": 1.0, "subtask_id": "t1", "retry_count": 1}, "t2": {"error": null, "status": "accepted", "content": "This is a fake response from the FakeProvider.", "confidence": 1.0, "subtask_id": "t2", "retry_count": 1}}, "final_response": "This is a fake response from the FakeProvider."}, "spans": [{"trace_id": "2c95d477bacf985a3126f9257c44d4fa", "span_id": "9535f20bc160a0c3", "parent_span_id": null, "name": "task.run", "kind": "INTERNAL", "status": "UNSET", "start_time": "2026-09-26T14:56:42.844008+00:00", "end_time": "2026-09-26T14:56:42.904796+00:00", "attributes": {"task_id": "24d80344-3e4e-4453-bb0e-0d20dccfdfd8"}}, {"trace_id": "2c95d477bacf985a3126f9257c44d4fa", "span_id": "8138d43433da795e", "parent_span_id": "9535f20bc160a0c3", "name": "supervisor.plan", "kind": "INTERNAL", "status": "UNSET", "start_time": "2026-09-26T14:56:42.854922+00:00", "end_time": "2026-09-26T14:56:42.873260+00:00", "attributes": {"task_id": "24d80344-3e4e-4453-bb0e-0d20dccfdfd8"}}, {"trace_id": "2c95d477bacf985a3126f9257c44d4fa", "span_id": "e500d1c9330e549d", "parent_span_id": "8138d43433da795e", "name": "memory.retrieve", "kind": "INTERNAL", "status": "UNSET", "start_time": "2026-09-26T14:56:42.854956+00:00", "end_time": "2026-09-26T14:56:42.872827+00:00", "attributes": {"task_id": "24d80344-3e4e-4453-bb0e-0d20dccfdfd8"}}, {"trace_id": "2c95d477bacf985a3126f9257c44d4fa", "span_id": "c6c5147844dbaa52", "parent_span_id": "e500d1c9330e549d", "name": "llm.complete_structured", "kind": "INTERNAL", "status": "UNSET", "start_time": "2026-09-26T14:56:42.872782+00:00", "end_time": "2026-09-26T14:56:42.872796+00:00", "attributes": {"role": "supervisor", "model": "fake-model-v1", "task_id": "24d80344-3e4e-4453-bb0e-0d20dccfdfd8", "cost_usd": 0.0, "tokens_prompt": 365, "tokens_completion": 34}}, {"trace_id": "2c95d477bacf985a3126f9257c44d4fa", "span_id": "3dbfab548698bdf1", "parent_span_id": "8138d43433da795e", "name": "llm.complete_structured", "kind": "INTERNAL", "status": "UNSET", "start_time": "2026-09-26T14:56:42.873203+00:00", "end_time": "2026-09-26T14:56:42.873211+00:00", "attributes": {"role": "supervisor", "model": "fake-model-v1", "task_id": "24d80344-3e4e-4453-bb0e-0d20dccfdfd8", "cost_usd": 0.0, "tokens_prompt": 402, "tokens_completion": 76}}, {"trace_id": "2c95d477bacf985a3126f9257c44d4fa", "span_id": "cff0add97b07708d", "parent_span_id": "9535f20bc160a0c3", "name": "specialist.run", "kind": "INTERNAL", "status": "UNSET", "start_time": "2026-09-26T14:56:42.878549+00:00", "end_time": "2026-09-26T14:56:42.878630+00:00", "attributes": {"task_id": "24d80344-3e4e-4453-bb0e-0d20dccfdfd8", "specialist": "researcher", "subtask_id": "t1"}}, {"trace_id": "2c95d477bacf985a3126f9257c44d4fa", "span_id": "2a4275797ae928e3", "parent_span_id": "cff0add97b07708d", "name": "llm.complete_structured", "kind": "INTERNAL", "status": "UNSET", "start_time": "2026-09-26T14:56:42.878611+00:00", "end_time": "2026-09-26T14:56:42.878619+00:00", "attributes": {"role": "specialist", "model": "fake-model-v1", "task_id": "24d80344-3e4e-4453-bb0e-0d20dccfdfd8", "cost_usd": 0.0, "tokens_prompt": 215, "tokens_completion": 27}}, {"trace_id": "2c95d477bacf985a3126f9257c44d4fa", "span_id": "997b2d64ba2ebcb4", "parent_span_id": "9535f20bc160a0c3", "name": "reviewer.review", "kind": "INTERNAL", "status": "UNSET", "start_time": "2026-09-26T14:56:42.881112+00:00", "end_time": "2026-09-26T14:56:42.881183+00:00", "attributes": {"task_id": "24d80344-3e4e-4453-bb0e-0d20dccfdfd8", "specialist": "researcher", "subtask_id": "t1"}}, {"trace_id": "2c95d477bacf985a3126f9257c44d4fa", "span_id": "698434ecfbbf65c5", "parent_span_id": "997b2d64ba2ebcb4", "name": "llm.complete_structured", "kind": "INTERNAL", "status": "UNSET", "start_time": "2026-09-26T14:56:42.881167+00:00", "end_time": "2026-09-26T14:56:42.881175+00:00", "attributes": {"role": "reviewer", "model": "fake-model-v1", "task_id": "24d80344-3e4e-4453-bb0e-0d20dccfdfd8", "cost_usd": 0.0, "tokens_prompt": 194, "tokens_completion": 45}}, {"trace_id": "2c95d477bacf985a3126f9257c44d4fa", "span_id": "7b8bc0b195633156", "parent_span_id": "9535f20bc160a0c3", "name": "specialist.run", "kind": "INTERNAL", "status": "UNSET", "start_time": "2026-09-26T14:56:42.884616+00:00", "end_time": "2026-09-26T14:56:42.884689+00:00", "attributes": {"task_id": "24d80344-3e4e-4453-bb0e-0d20dccfdfd8", "specialist": "writer", "subtask_id": "t2"}}, {"trace_id": "2c95d477bacf985a3126f9257c44d4fa", "span_id": "867662ad7f52c440", "parent_span_id": "7b8bc0b195633156", "name": "llm.complete_structured", "kind": "INTERNAL", "status": "UNSET", "start_time": "2026-09-26T14:56:42.884672+00:00", "end_time": "2026-09-26T14:56:42.884680+00:00", "attributes": {"role": "specialist", "model": "fake-model-v1", "task_id": "24d80344-3e4e-4453-bb0e-0d20dccfdfd8", "cost_usd": 0.0, "tokens_prompt": 213, "tokens_completion": 27}}, {"trace_id": "2c95d477bacf985a3126f9257c44d4fa", "span_id": "b6e55d78d059a376", "parent_span_id": "9535f20bc160a0c3", "name": "reviewer.review", "kind": "INTERNAL", "status": "UNSET", "start_time": "2026-09-26T14:56:42.886532+00:00", "end_time": "2026-09-26T14:56:42.886596+00:00", "attributes": {"task_id": "24d80344-3e4e-4453-bb0e-0d20dccfdfd8", "specialist": "writer", "subtask_id": "t2"}}, {"trace_id": "2c95d477bacf985a3126f9257c44d4fa", "span_id": "5b923212fc34f99a", "parent_span_id": "b6e55d78d059a376", "name": "llm.complete_structured", "kind": "INTERNAL", "status": "UNSET", "start_time": "2026-09-26T14:56:42.886581+00:00", "end_time": "2026-09-26T14:56:42.886589+00:00", "attributes": {"role": "reviewer", "model": "fake-model-v1", "task_id": "24d80344-3e4e-4453-bb0e-0d20dccfdfd8", "cost_usd": 0.0, "tokens_prompt": 191, "tokens_completion": 45}}, {"trace_id": "2c95d477bacf985a3126f9257c44d4fa", "span_id": "11a526a67baf0c04", "parent_span_id": "9535f20bc160a0c3", "name": "synthesize", "kind": "INTERNAL", "status": "UNSET", "start_time": "2026-09-26T14:56:42.891201+00:00", "end_time": "2026-09-26T14:56:42.891262+00:00", "attributes": {"task_id": "24d80344-3e4e-4453-bb0e-0d20dccfdfd8"}}, {"trace_id": "2c95d477bacf985a3126f9257c44d4fa", "span_id": "3a644440b68f1c2c", "parent_span_id": "11a526a67baf0c04", "name": "llm.complete_structured", "kind": "INTERNAL", "status": "UNSET", "start_time": "2026-09-26T14:56:42.891247+00:00", "end_time": "2026-09-26T14:56:42.891256+00:00", "attributes": {"role": "specialist", "model": "fake-model-v1", "task_id": "24d80344-3e4e-4453-bb0e-0d20dccfdfd8", "cost_usd": 0.0, "tokens_prompt": 241, "tokens_completion": 27}}, {"trace_id": "2c95d477bacf985a3126f9257c44d4fa", "span_id": "fb9b9ec0f81c009e", "parent_span_id": "9535f20bc160a0c3", "name": "memory.extract", "kind": "INTERNAL", "status": "UNSET", "start_time": "2026-09-26T14:56:42.891283+00:00", "end_time": "2026-09-26T14:56:42.902142+00:00", "attributes": {"task_id": "24d80344-3e4e-4453-bb0e-0d20dccfdfd8"}}, {"trace_id": "2c95d477bacf985a3126f9257c44d4fa", "span_id": "b0d9550608783533", "parent_span_id": "fb9b9ec0f81c009e", "name": "llm.complete_structured", "kind": "INTERNAL", "status": "UNSET", "start_time": "2026-09-26T14:56:42.891319+00:00", "end_time": "2026-09-26T14:56:42.891326+00:00", "attributes": {"role": "extractor", "model": "fake-model-v1", "task_id": "24d80344-3e4e-4453-bb0e-0d20dccfdfd8", "cost_usd": 0.0, "tokens_prompt": 198, "tokens_completion": 43}}]}};
+
+const SNAPSHOT = window.__SNAPSHOT__;
+let selected = SNAPSHOT.detail_task_id;
+
+function escapeHtml(text) {
+  const div = document.createElement("div");
+  div.textContent = text == null ? "" : String(text);
+  return div.innerHTML;
+}
+
+function renderTasks(tasks) {
+  const list = document.getElementById("tasks");
+  list.innerHTML = tasks.map((task) => `
+    <li data-id="${task.task_id}" class="${task.task_id === selected ? "selected" : ""}">
+      <div class="request"><span class="status-dot ${escapeHtml(task.status)}"></span>${escapeHtml(task.request)}</div>
+      <div class="meta"><span>${escapeHtml(task.status)}</span><span>${new Date(task.created_at).toLocaleString()}</span></div>
+    </li>`).join("");
+  list.querySelectorAll("li[data-id]").forEach((li) => {
+    li.addEventListener("click", () => {
+      selected = li.dataset.id;
+      renderTasks(SNAPSHOT.tasks);
+      const note = document.getElementById("note");
+      note.textContent = "Snapshot holds the full trace for task " + SNAPSHOT.detail_task_id +
+        "; other tasks show list data only. Start the API for live traces.";
+      renderDetail(SNAPSHOT.detail);
+    });
+  });
+}
+
+function renderDetail(detail) {
+  const el = document.getElementById("detail");
+  if (!detail || detail.task_id !== selected) {
+    el.innerHTML = '<div class="empty-state"><h3>Trace not in snapshot</h3><p>' +
+      'This snapshot carries the full span trace for task ' + SNAPSHOT.detail_task_id + '.</p></div>';
+    return;
+  }
+  el.innerHTML = `
+    <div class="section">
+      <div class="task-header">
+        <span class="request"><span class="status-dot ${escapeHtml(detail.status)}"></span>${escapeHtml(detail.request)}</span>
+        <span class="muted">${escapeHtml(detail.status)} · created ${new Date(detail.created_at).toLocaleString()}</span>
+      </div>
+    </div>
+    <div class="section"><h2>Plan</h2><pre>${escapeHtml(JSON.stringify(detail.plan ?? [], null, 2))}</pre></div>
+    <div class="section"><h2>Result</h2><pre>${escapeHtml(JSON.stringify(detail.result ?? {}, null, 2))}</pre></div>
+    <div class="section"><h2>Trace</h2>${renderSpanTree(buildTree(detail.spans))}</div>`;
+  el.querySelectorAll(".span-row").forEach((row) => {
+    row.addEventListener("click", () => {
+      const attrs = row.nextElementSibling;
+      if (attrs && attrs.classList.contains("span-attrs")) attrs.classList.toggle("open");
+    });
+  });
+}
+
+function buildTree(spans) {
+  const nodes = {};
+  spans.forEach((s) => { nodes[s.span_id] = { ...s, children: [] }; });
+  const roots = [];
+  spans.forEach((s) => {
+    const parent = s.parent_span_id;
+    if (parent && nodes[parent]) nodes[parent].children.push(nodes[s.span_id]);
+    else roots.push(nodes[s.span_id]);
+  });
+  return roots;
+}
+
+function renderSpanTree(roots) {
+  if (!roots.length) return '<p class="muted">No spans recorded for this task.</p>';
+  return `<ul class="span-tree">${roots.map(renderSpanNode).join("")}</ul>`;
+}
+
+function renderSpanNode(node) {
+  const start = node.start_time ? Date.parse(node.start_time) : null;
+  const end = node.end_time ? Date.parse(node.end_time) : null;
+  const ms = start && end ? Math.max(0, end - start) : null;
+  const attrs = Object.entries(node.attributes || {})
+    .map(([key, value]) => `${key}=${JSON.stringify(value)}`).join("\n");
+  const children = (node.children || []).map(renderSpanNode).join("");
+  return `
+    <li>
+      <div class="span-row"><span class="span-name">${escapeHtml(node.name)}</span>
+      <span class="span-latency">${ms === null ? "" : ms + " ms"}</span></div>
+      <div class="span-attrs">${escapeHtml(attrs || "(no attributes)")}</div>
+      ${children ? `<ul>${children}</ul>` : ""}
+    </li>`;
+}
+
+document.getElementById("note").textContent =
+  "Static snapshot generated " + SNAPSHOT.generated_at +
+  " from live Postgres data. Start the API (uvicorn api.server:app) for the live explorer at /explorer.";
+renderTasks(SNAPSHOT.tasks);
+renderDetail(SNAPSHOT.detail);
+
+</script>
+</body>
+</html>
