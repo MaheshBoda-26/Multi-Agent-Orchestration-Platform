@@ -92,3 +92,19 @@ synchronous interface, and lint/type/CI tooling was configured but empty.
   the same Postgres otherwise.
 - **ChromaDB service removed.** Superseded by the pgvector decision; the memory
   module is rewritten against Postgres in the memory phase.
+
+## 2026-09-26 — Worker execution notes (durability test findings)
+
+- **Celery uses the `threads` pool on Python 3.14.** The default prefork pool
+  crashes in `fast_trace_task` with `ValueError: not enough values to unpack`
+  (billiard is not 3.14-ready). Compose runs
+  `--pool=threads --concurrency=4`; the kill/resume test uses `--pool=solo` for
+  deterministic crashes. The graph work is async I/O, so threads are a good fit.
+- **Every worker invoke passes `durability="sync"`.** LangGraph 1.x defaults to
+  asynchronous checkpoint writes, and a SIGKILL loses them: an experiment showed
+  one surviving checkpoint row with the default versus five with `sync`. Crash
+  recovery is the phase requirement, so synchronous durability is non-negotiable
+  in the worker.
+- **`set_task_status` casts `$2`.** asyncpg inferred conflicting types for a
+  parameter used both as the assigned status column and in a comparison;
+  `$2::varchar` / `$2::text` fixes it.

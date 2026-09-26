@@ -31,9 +31,9 @@ async def set_task_status(pool: asyncpg.Pool, task_id: uuid.UUID, status: str,
         await conn.execute(
             """
             UPDATE tasks
-            SET status = $2,
+            SET status = $2::varchar,
                 error = COALESCE($3, error),
-                started_at = CASE WHEN $2 = 'running' THEN NOW() ELSE started_at END
+                started_at = CASE WHEN $2::text = 'running' THEN NOW() ELSE started_at END
             WHERE id = $1
             """,
             task_id, status, error,

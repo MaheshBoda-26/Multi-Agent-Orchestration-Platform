@@ -62,7 +62,9 @@ services:
         condition: service_healthy
     volumes:
       - .:/app
-    command: ["celery", "-A", "worker.celery_app", "worker", "--loglevel=info", "--concurrency=2"]
+    # Threads pool: Celery's default forked pool is broken on Python 3.14
+    # (billiard fast_trace_task unpack error), and the graph work is async I/O.
+    command: ["celery", "-A", "worker.celery_app", "worker", "--loglevel=info", "--pool=threads", "--concurrency=4"]
 
 volumes:
   postgres_data:
