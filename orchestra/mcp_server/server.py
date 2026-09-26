@@ -50,6 +50,11 @@ class OrchestraMCPServer:
     ):
         self.task_id = task_id or f"mcp-{uuid.uuid4()}"
         self.registry = registry or build_tool_registry(self.task_id)
+        # The registry's allowlists name graph specialists; the MCP client is
+        # its own operator-grade identity on this server-owned registry.
+        for schema in self.registry.list_tools():
+            if "mcp_client" not in schema.allowed_specialists:
+                schema.allowed_specialists.append("mcp_client")
         self.allow_sensitive = (
             allow_sensitive
             if allow_sensitive is not None

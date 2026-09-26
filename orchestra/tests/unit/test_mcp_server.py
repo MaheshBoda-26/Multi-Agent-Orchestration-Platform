@@ -30,30 +30,33 @@ def test_tools_list_exposes_registry_schemas(server):
     assert "query" in web_search["inputSchema"]["properties"]
 
 
-def test_initialize_and_tools_list_over_jsonrpc(server):
-    init = server.handle_request({
+@pytest.mark.asyncio
+async def test_initialize_and_tools_list_over_jsonrpc(server):
+    init = await server.handle_request({
         "jsonrpc": "2.0", "id": 1, "method": "initialize",
         "params": {"protocolVersion": "2024-11-05"},
     })
     assert init["jsonrpc"] == "2.0"
     assert init["result"]["serverInfo"]["name"] == "orchestra-mcp"
 
-    listed = server.handle_request({
+    listed = await server.handle_request({
         "jsonrpc": "2.0", "id": 2, "method": "tools/list",
     })
     names = {tool["name"] for tool in listed["result"]["tools"]}
     assert EXPECTED_TOOLS <= names
 
 
-def test_unknown_method_is_jsonrpc_error(server):
-    response = server.handle_request({
+@pytest.mark.asyncio
+async def test_unknown_method_is_jsonrpc_error(server):
+    response = await server.handle_request({
         "jsonrpc": "2.0", "id": 3, "method": "resources/list",
     })
     assert response["error"]["code"] == -32601
 
 
-def test_notifications_return_none(server):
-    assert server.handle_request({
+@pytest.mark.asyncio
+async def test_notifications_return_none(server):
+    assert await server.handle_request({
         "jsonrpc": "2.0", "method": "notifications/initialized",
     }) is None
 
@@ -65,7 +68,7 @@ async def test_tools_call_runs_through_the_registry(server):
         "params": {"name": "web_search", "arguments": {"query": "orchestra"}},
     })
     result = response["result"]
-    assert result["isError"] is False or "isError" not in result
+    assert not result.get("isError")
     text = result["content"][0]["text"]
     assert "orchestra" in text.lower()
 
@@ -92,10 +95,13 @@ async def test_sensitive_tools_are_gated_with_a_signature(server):
 
 
 @pytest.mark.asyncio
-async def test_file_read_roundtrip_inside_the_jail(tmp_path):
+async def test_file_roundtrip_with_sensitive_override_stays_jailed(tmp_path):
+    # The override path is how a trusted operator opts in; the workspace jail
+    # still applies to every call.
     registry = build_tool_registry("mcp-test-task-2", workspace_root=str(tmp_path))
-    server = OrchestraMCPServer(registry, allow_sensitive=False)
+    server = OrchestraMCPServer(registry, allow_sensitive=True)
     write = await server.call_tool("file_write", {"path": "notes.txt", "content": "hello mcp"})
+    assert not write.get("isError")
     assert write["content"][0]["text"].startswith("Successfully wrote")
 
     read = await server.call_tool("file_read", {"path": "notes.txt"})
