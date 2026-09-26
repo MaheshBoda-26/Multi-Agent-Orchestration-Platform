@@ -27,3 +27,16 @@ Append-only. One entry per correction or root cause, dated.
 - **A mocked pool hides loop-affinity bugs.** The exporter's unit test passed
   while production dropped 100% of spans; the DB-backed trace test caught it.
   Keep one end-to-end assertion per exporter or writer.
+- **CheckpointTuple state lives in checkpoint["channel_values"]** on the
+  pinned langgraph version; `.state`/`.values` are plain strings (thread ids),
+  not the graph state. Version-tolerant access goes through
+  `graph.replay.load_checkpoint_values`.
+- **KeyError is a LookupError.** In FastAPI except-clauses, the KeyError
+  branch (422) must precede the LookupError branch (404) or unknown edit
+  fields come back as 404.
+- **The sandbox reaps background processes when each command exits.** For
+  live-UI checks, prefer the page-asserting integration tests
+  (`/explorer`, `/dashboard` render 200 + title) over long-lived dev servers.
+- **Fake baselines must be symmetric.** A replay no-edit proof diverges unless
+  the original run and the replay share one provider (script the worker via
+  FAKE_PLAN_PATH or run the original in-process, as the replay test does).

@@ -130,3 +130,25 @@ synchronous interface, and lint/type/CI tooling was configured but empty.
 - **Trace and cost endpoints added:** `GET /tasks/{id}/trace` returns the span
   tree (every agent, tool and model call) and `GET /tasks/{id}/cost` returns the
   run rollup.
+- **Tool output is data, not instructions (Phase 7).** Every specialist tool
+  observation passes through `graph/sanitize.py`: framed as UNTRUSTED DATA
+  with instruction-like patterns flagged, plus a standing security policy in
+  the prompt. Heuristic layers only - approval gates stay authoritative for
+  sensitive actions. Injection pass rates publish to `security/results.md`
+  via `python -m security.run_injection` + `python -m security.report`.
+- **Replay re-executes with edited inputs, into a fresh thread (Task 41).**
+  `POST /tasks/{id}/replay` loads the final checkpoint's channel values
+  (`checkpoint["channel_values"]` on this langgraph version - CheckpointTuple
+  has no `.state`/`.values`), applies edits, and invokes the graph into a
+  `replay-<uuid>` thread so the original is never touched. The plan diff is
+  honest only when original and replay use the same provider.
+- **MCP exposure keeps the audit path (Task 42).** `mcp_server/server.py` is
+  dependency-free stdio JSON-RPC over the same registry + `execute_tool`;
+  sensitive tools return their approval signature instead of executing unless
+  `ORCHESTRA_MCP_ALLOW_SENSITIVE=1`. The MCP client is its own specialist
+  identity granted on the server-owned registry.
+- **Phase 8 UIs are static and FastAPI-served.** `/explorer` +
+  `/tasks/{id}/explorer` render plan/result/span tree from the existing
+  endpoints; `/dashboard` reads the new `GET /stats/cost` rollup
+  (run_metadata totals + approvals grouped by trigger/status). No build step,
+  same style as the approval queue.
