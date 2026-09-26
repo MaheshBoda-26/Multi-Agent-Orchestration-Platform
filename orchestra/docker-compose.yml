@@ -1,6 +1,8 @@
 services:
   postgres:
-    image: postgres:16
+    # pgvector image: same as postgres:16 plus the vector extension needed by
+    # the long-term memory phase (migration 005).
+    image: pgvector/pgvector:pg16
     environment:
       POSTGRES_USER: orchestra
       POSTGRES_PASSWORD: orchestra
@@ -27,19 +29,6 @@ services:
       timeout: 5s
       retries: 5
 
-  chromadb:
-    image: ghcr.io/chroma-core/chroma:latest
-    # Host port 8001: the API already owns 8000 on the host.
-    ports:
-      - "8001:8000"
-    volumes:
-      - chromadb_data:/chroma/chroma
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v2/heartbeat"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
   api:
     build: .
     ports:
@@ -47,25 +36,34 @@ services:
     environment:
       DATABASE_URL: postgresql://orchestra:orchestra@postgres:5432/orchestra
       REDIS_URL: redis://redis:6379/0
-      CHROMA_HOST: chromadb
-      CHROMA_PORT: 8000
-      LLM_PROVIDER: fake
+      CELERY_BROKER_URL: redis://redis:6379/0
+      LLM_PROVIDER: ${LLM_PROVIDER:-fake}
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
-      chromadb:
-        condition: service_healthy
     volumes:
       - .:/app
     command: ["uvicorn", "api.server:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
 
-  # NOTE: the Celery worker is intentionally absent until worker/tasks.py and
-  # the celery dependency exist (Phase 5a). Running the old service pointed at
-  # a nonexistent module and crashed the stack on startup.
+  worker:
+    build: .
+    environment:
+      DATABASE_URL: postgresql://orchestra:orchestra@postgres:5432/orchestra
+      CELERY_BROKER_URL: redis://redis:6379/0
+      REDIS_URL: redis://redis:6379/0
+      LLM_PROVIDER: ${LLM_PROVIDER:-fake}
+      WORKSPACES_ROOT: /app/workspaces
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - .:/app
+    command: ["celery", "-A", "worker.celery_app", "worker", "--loglevel=info", "--concurrency=2"]
 
 volumes:
   postgres_data:
   redis_data:
-  chromadb_data:

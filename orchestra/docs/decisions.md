@@ -72,3 +72,23 @@ synchronous interface, and lint/type/CI tooling was configured but empty.
 - **The code-execution tool is still the in-process simulation.** It is not a
   security boundary; the Docker sandbox remains required before any real model
   reaches it.
+
+## 2026-09-26 — Durability phase entry
+
+**Context.** The next build milestone is the Phase 1 exit (durable runs), per
+`files/phases.md`. It needs a checkpointer, a real worker and run analytics.
+
+**Decisions**
+
+- **Checkpointer driver is psycopg3, not asyncpg.** `AsyncPostgresSaver` takes a
+  `psycopg_pool.AsyncConnectionPool`; the app's asyncpg pool cannot be reused
+  for it. `graph/checkpointer.py` owns a small psycopg pool alongside the
+  asyncpg pool.
+- **Celery worker restored to compose.** `worker/celery_app.py` + `worker/tasks.py`
+  now exist, with `task_acks_late` and `worker_prefetch_multiplier=1`, so a
+  killed worker's job is redelivered and resumed from the LangGraph checkpoint.
+- **Postgres image is `pgvector/pgvector:pg16`.** Adopted now (data is
+  disposable) because the memory phase (005) needs the `vector` extension; it is
+  the same Postgres otherwise.
+- **ChromaDB service removed.** Superseded by the pgvector decision; the memory
+  module is rewritten against Postgres in the memory phase.
