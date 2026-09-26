@@ -163,6 +163,11 @@ async def test_rejected_sensitive_tool_is_reported_not_executed():
 
     async def executor(**kwargs):
         calls.append(kwargs)
+        signature = tool_signature(
+            kwargs["subtask_id"], kwargs["tool_name"], kwargs["arguments"]
+        )
+        if kwargs.get("approved_signature") != signature:
+            raise ApprovalRequired(kwargs["tool_name"], kwargs["arguments"], signature)
         return ToolResult(content="should not happen")
 
     graph, config = _graph(provider, executor=executor, thread="t-reject-tool")
