@@ -1,12 +1,27 @@
 import os
-import shutil
-from typing import Optional
-from tools.registry import BaseTool, ToolSchema, ToolResult
+from typing import Any, Optional
+
+from tools.registry import BaseTool, ToolResult, ToolSchema
+
+
+def resolve_in_workspace(workspace_root: str, path: str) -> Optional[str]:
+    """Resolve a relative path inside the workspace, or None if it escapes.
+
+    Uses realpath (so symlinks cannot escape) and commonpath (so a sibling
+    directory that merely shares a name prefix, e.g. /tmp/ws-evil next to
+    /tmp/ws, is rejected too).
+    """
+    root = os.path.realpath(workspace_root)
+    candidate = os.path.realpath(os.path.join(root, path))
+    if candidate != root and os.path.commonpath([root, candidate]) != root:
+        return None
+    return candidate
+
 
 class FileReadTool(BaseTool):
     """Reads a file from the jailed workspace."""
-    
-    def __init__(self, workspace_root: str):
+
+    def __init__(self, workspace_root: str) -> None:
         schema = ToolSchema(
             name="file_read",
             description="Read the content of a file in the workspace.",
@@ -16,10 +31,9 @@ class FileReadTool(BaseTool):
         super().__init__(schema)
         self.workspace_root = os.path.abspath(workspace_root)
 
-    async def run(self, path: str, **kwargs) -> ToolResult:
-        # Jail check: Ensure path is within workspace_root
-        full_path = os.path.abspath(os.path.join(self.workspace_root, path))
-        if not full_path.startswith(self.workspace_root):
+    async def run(self, path: str = "", **kwargs: Any) -> ToolResult:
+        full_path = resolve_in_workspace(self.workspace_root, path)
+        if full_path is None:
             return ToolResult(content="", status="error", error="Security violation: path outside workspace")
 
         try:
@@ -29,10 +43,11 @@ class FileReadTool(BaseTool):
         except Exception as e:
             return ToolResult(content="", status="error", error=str(e))
 
+
 class FileWriteTool(BaseTool):
     """Writes content to a file in the jailed workspace."""
-    
-    def __init__(self, workspace_root: str):
+
+    def __init__(self, workspace_root: str) -> None:
         schema = ToolSchema(
             name="file_write",
             description="Write content to a file in the workspace.",
@@ -45,9 +60,9 @@ class FileWriteTool(BaseTool):
         super().__init__(schema)
         self.workspace_root = os.path.abspath(workspace_root)
 
-    async def run(self, path: str, content: str, **kwargs) -> ToolResult:
-        full_path = os.path.abspath(os.path.join(self.workspace_root, path))
-        if not full_path.startswith(self.workspace_root):
+    async def run(self, path: str = "", content: str = "", **kwargs: Any) -> ToolResult:
+        full_path = resolve_in_workspace(self.workspace_root, path)
+        if full_path is None:
             return ToolResult(content="", status="error", error="Security violation: path outside workspace")
 
         try:
