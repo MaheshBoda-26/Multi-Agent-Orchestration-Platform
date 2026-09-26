@@ -8,6 +8,7 @@ import os
 from pathlib import Path
 from typing import List, Optional
 
+from tools.builtin.db_tools import ReadOnlySQLTool
 from tools.builtin.file_tools import FileReadTool, FileWriteTool
 from tools.builtin.sandbox import CodeExecutionTool
 from tools.builtin.web_tools import HttpCallTool, TavilySearchTool, WebSearchTool
@@ -56,6 +57,7 @@ def build_tool_registry(
     registry.register(CodeExecutionTool())
     registry.register(HttpCallTool(allowed_domains or DEFAULT_HTTP_ALLOWLIST))
     registry.register(_search_tool(search_backend))
+    registry.register(ReadOnlySQLTool())
 
     for name in SENSITIVE_TOOLS:
         permission_manager.mark_sensitive(name)

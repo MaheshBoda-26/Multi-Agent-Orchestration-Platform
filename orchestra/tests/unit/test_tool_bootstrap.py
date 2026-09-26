@@ -5,7 +5,9 @@ from tools.permissions import permission_manager
 def test_registry_contains_builtin_tools(tmp_path):
     registry = build_tool_registry("task-1", workspace_root=str(tmp_path))
     names = {schema.name for schema in registry.list_tools()}
-    assert names == {"web_search", "http_get", "file_read", "file_write", "code_execute"}
+    assert names == {
+        "web_search", "http_get", "file_read", "file_write", "code_execute", "db_query"
+    }
 
 
 def test_workspace_is_per_task(tmp_path):
