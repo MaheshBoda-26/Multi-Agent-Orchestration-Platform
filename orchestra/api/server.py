@@ -170,6 +170,38 @@ async def get_task_cost(task_id: str) -> Dict[str, Any]:
     }
 
 
+class ReplayRequest(BaseModel):
+    edits: Dict[str, Any]
+
+
+@app.post("/tasks/{task_id}/replay")
+async def replay_task_endpoint(task_id: str, request: ReplayRequest):
+    """Replay a completed run with edited inputs; returns the divergence diff.
+
+    The original checkpoint is never modified: the replay runs in a fresh
+    checkpointer thread seeded with the edited state.
+    """
+    await _get_task_or_404(task_id)
+    from graph.build import OrchestraGraph
+    from graph.checkpointer import create_checkpointer
+    from graph.replay import replay_task
+
+    ckpt_pool, checkpointer = await create_checkpointer(os.getenv(
+        "DATABASE_URL", "postgresql://orchestra:orchestra@localhost:5432/orchestra"
+    ))
+    try:
+        graph = OrchestraGraph(FakeProvider(), checkpointer=checkpointer)
+        return await replay_task(
+            checkpointer, graph.workflow, task_id, request.edits
+        )
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except KeyError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    finally:
+        await ckpt_pool.close()
+
+
 def _span_tree(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     nodes: Dict[str, Dict[str, Any]] = {}
     for row in rows:
@@ -294,11 +326,11 @@ async def _clarify_from_checkpoint(approval: ApprovalRequest, question: str) -> 
     if snapshot is None:
         raise LookupError("No checkpoint exists for this task")
 
-    # CheckpointTuple exposes the channel values via ``state`` on this
-    # langgraph version; fall back defensively for other versions.
-    state: Dict[str, Any] = getattr(snapshot, "state", None) or getattr(
-        snapshot, "values", None
-    ) or {}
+    # CheckpointTuple channel values: this langgraph version keeps them in
+    # checkpoint["channel_values"] (graph.replay.load_checkpoint_values is
+    # version-tolerant for other shapes).
+    from graph.replay import load_checkpoint_values
+    state: Dict[str, Any] = load_checkpoint_values(snapshot)
     summary = {
         "task_description": state.get("task_description"),
         "plan": state.get("plan"),
