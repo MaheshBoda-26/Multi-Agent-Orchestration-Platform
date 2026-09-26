@@ -75,6 +75,33 @@ async def create_task(request: TaskRequest):
     return TaskResponse(task_id=str(task_id), status="queued")
 
 
+@app.get("/tasks")
+async def list_tasks(limit: int = 20) -> Dict[str, Any]:
+    """Most recent tasks first, for the explorer's task list."""
+    limit = max(1, min(limit, 100))
+    async with _db_pool().acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT id, request, status, error, created_at, finished_at
+            FROM tasks ORDER BY created_at DESC LIMIT $1
+            """,
+            limit,
+        )
+    return {
+        "tasks": [
+            {
+                "task_id": str(row["id"]),
+                "request": row["request"],
+                "status": row["status"],
+                "error": row["error"],
+                "created_at": row["created_at"].isoformat() if row["created_at"] else None,
+                "finished_at": row["finished_at"].isoformat() if row["finished_at"] else None,
+            }
+            for row in rows
+        ]
+    }
+
+
 @app.get("/tasks/{task_id}")
 async def get_task(task_id: str):
     row = await _get_task_or_404(task_id)
@@ -382,6 +409,86 @@ async def delete_memories(user_id: str) -> Dict[str, Any]:
 @app.get("/memory/ui", response_class=HTMLResponse)
 async def memory_ui():
     with open("web/memory.html") as f:
+        return HTMLResponse(content=f.read())
+
+
+# --- Stats, dashboards and the trace explorer (Phase 8) ----------------------
+
+@app.get("/stats/cost")
+async def stats_cost() -> Dict[str, Any]:
+    """Fleet-wide cost, latency and escalation rollup for the dashboard."""
+    async with _db_pool().acquire() as conn:
+        totals = await conn.fetchrow(
+            """
+            SELECT COUNT(*) AS runs,
+                   COALESCE(SUM(total_prompt_tokens), 0) AS prompt_tokens,
+                   COALESCE(SUM(total_completion_tokens), 0) AS completion_tokens,
+                   COALESCE(SUM(total_cost_usd), 0) AS cost_usd,
+                   COALESCE(AVG(latency_ms), 0) AS avg_latency_ms
+            FROM run_metadata
+            """
+        )
+        by_status = await conn.fetch(
+            "SELECT status, COUNT(*) AS runs FROM run_metadata GROUP BY status"
+        )
+        breakdown_rows = await conn.fetch(
+            "SELECT model_breakdown FROM run_metadata WHERE model_breakdown IS NOT NULL"
+        )
+        approvals = await conn.fetch(
+            """
+            SELECT trigger, status, COUNT(*) AS count
+            FROM approvals GROUP BY trigger, status
+            """
+        )
+
+    models: Dict[str, Dict[str, float]] = {}
+    for row in breakdown_rows:
+        breakdown = row["model_breakdown"]
+        if isinstance(breakdown, str):
+            breakdown = json.loads(breakdown)
+        for model, stats in (breakdown or {}).items():
+            bucket = models.setdefault(
+                model, {"prompt_tokens": 0, "completion_tokens": 0, "cost_usd": 0.0}
+            )
+            bucket["prompt_tokens"] += int(stats.get("prompt_tokens", 0) or 0)
+            bucket["completion_tokens"] += int(stats.get("completion_tokens", 0) or 0)
+            bucket["cost_usd"] += float(stats.get("cost_usd", 0) or 0)
+
+    escalations: Dict[str, Dict[str, int]] = {}
+    for row in approvals:
+        entry = escalations.setdefault(row["trigger"], {})
+        entry[row["status"]] = int(row["count"])
+
+    return {
+        "runs": int(totals["runs"]),
+        "prompt_tokens": int(totals["prompt_tokens"]),
+        "completion_tokens": int(totals["completion_tokens"]),
+        "cost_usd": float(totals["cost_usd"]),
+        "avg_latency_ms": int(totals["avg_latency_ms"]),
+        "runs_by_status": {row["status"]: int(row["runs"]) for row in by_status},
+        "models": models,
+        "escalations": escalations,
+    }
+
+
+# NOTE: literal /explorer is declared before /tasks/{task_id}/explorer and both
+# before any /tasks/{task_id} sibling that could shadow them.
+@app.get("/explorer", response_class=HTMLResponse)
+async def explorer_index():
+    with open("web/explorer.html") as f:
+        return HTMLResponse(content=f.read())
+
+
+@app.get("/tasks/{task_id}/explorer", response_class=HTMLResponse)
+async def explorer_task(task_id: str):
+    await _get_task_or_404(task_id)
+    with open("web/explorer.html") as f:
+        return HTMLResponse(content=f.read())
+
+
+@app.get("/dashboard", response_class=HTMLResponse)
+async def dashboard_ui():
+    with open("web/dashboard.html") as f:
         return HTMLResponse(content=f.read())
 
 

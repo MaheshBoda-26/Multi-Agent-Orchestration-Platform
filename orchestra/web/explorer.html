@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Orchestra - Trace Explorer</title>
+    <link rel="stylesheet" href="/static/approval.css">
+    <link rel="stylesheet" href="/static/explorer.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Trace Explorer</h1>
+            <div class="header-controls">
+                <a href="/dashboard" class="task-link">Dashboard &rarr;</a>
+                <a href="/approvals/ui" class="task-link">Approvals &rarr;</a>
+                <a href="/memory/ui" class="task-link">Memory &rarr;</a>
+                <span id="last-refresh" class="muted"></span>
+                <button class="refresh-btn" onclick="loadTasks()">Refresh</button>
+            </div>
+        </header>
+
+        <div class="explorer-layout">
+            <aside class="task-list">
+                <h2>Tasks</h2>
+                <ul id="tasks"></ul>
+            </aside>
+            <main class="task-detail" id="detail">
+                <div class="empty-state">
+                    <h3>Select a task</h3>
+                    <p>Pick a task on the left to inspect its plan, results and full span trace.</p>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <script src="/static/explorer.js"></script>
+</body>
+</html>
