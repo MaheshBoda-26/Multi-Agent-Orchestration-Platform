@@ -1,107 +1,141 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Orchestra - Memory Dashboard</title>
-    <link rel="stylesheet" href="/static/approval.css">
-    <style>
-        .memory-card { background: white; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); margin-bottom: 16px; padding: 16px 20px; }
-        .memory-meta { display: flex; gap: 16px; color: #888; font-size: 12px; margin-top: 8px; }
-        .memory-content { white-space: pre-wrap; color: #333; font-size: 14px; }
-        .lookup { display: flex; gap: 12px; margin-bottom: 24px; }
-        .lookup input { flex: 1; padding: 10px 14px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Orchestra — Memory</title>
+<link rel="stylesheet" href="/static/console.css">
+<style>
+.page { padding: var(--s6) 0 var(--s8); }
+.page-head { display: flex; justify-content: space-between; align-items: baseline; gap: var(--s4); margin-bottom: var(--s5); flex-wrap: wrap; }
+
+.lookup {
+  display: flex; gap: var(--s2);
+  padding: var(--s4) var(--s5);
+  flex-wrap: wrap;
+  align-items: center;
+}
+.lookup input {
+  flex: 1;
+  min-width: 220px;
+  min-height: 44px;
+  padding: 0 var(--s4);
+  background: var(--void);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-sm);
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: 0.9rem;
+}
+.lookup input::placeholder { color: var(--ink-faint); }
+@media (prefers-color-scheme: light) { .lookup input { background: var(--panel-2); } }
+
+.mem-list { display: grid; gap: var(--s3); margin-top: var(--s5); }
+.mem-card { padding: var(--s4) var(--s5); }
+.mem-card .content { white-space: pre-wrap; font-size: 0.92rem; color: var(--ink); line-height: 1.6; }
+.mem-card .meta {
+  display: flex; gap: var(--s4); flex-wrap: wrap;
+  margin-top: var(--s3);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--ink-faint);
+}
+.empty { border: 1px dashed var(--line); border-radius: var(--radius); }
+</style>
 </head>
 <body>
-    <div class="container">
-        <header>
-            <h1>Memory Dashboard</h1>
-            <a href="/approvals/ui" class="task-link">Approvals &rarr;</a>
-        </header>
+<script src="/static/console.js"></script>
+<script>document.write(consoleNav("/memory/ui"));</script>
 
-        <div class="lookup">
-            <input id="user-id" placeholder="Enter a user id, then press Enter">
-            <button class="refresh-btn" onclick="loadMemories()">Load</button>
-            <button class="btn btn-danger" onclick="deleteMemories()">Delete All</button>
-        </div>
+<main class="shell page">
+  <div class="page-head">
+    <h1 class="display-2">Memory</h1>
+    <span class="mono muted">every run leaves a lesson — pgvector, per user</span>
+  </div>
 
-        <div id="memories-container">
-            <div class="empty-state" id="empty-state">
-                <h3>No memories loaded</h3>
-                <p>Enter a user id above to inspect their long-term lessons.</p>
-            </div>
-        </div>
+  <section class="panel reveal">
+    <div class="lookup">
+      <input id="user-id" placeholder="user id — press Enter to inspect" aria-label="User id">
+      <button class="btn btn-primary" onclick="loadMemories()">Load</button>
+      <button class="btn btn-danger" onclick="deleteMemories()">Delete all</button>
     </div>
+  </section>
 
-    <script>
-        "use strict";
+  <div class="mem-list" id="memories-container">
+    <div class="empty" id="empty-state">
+      <h3>No memories loaded</h3>
+      <p>Enter a user id above to inspect the lessons Orchestra has learned for them.</p>
+    </div>
+  </div>
+</main>
 
-        function currentUserId() {
-            return document.getElementById("user-id").value.trim();
-        }
+<script>
+"use strict";
+consoleBoot("/memory/ui");
 
-        async function loadMemories() {
-            const userId = currentUserId();
-            if (!userId) { alert("Enter a user id first"); return; }
-            try {
-                const response = await fetch(`/users/${encodeURIComponent(userId)}/memories`);
-                const data = await response.json();
-                renderMemories(data.memories || []);
-            } catch (e) {
-                console.error("Failed to load memories:", e);
-            }
-        }
+function currentUserId() {
+  return document.getElementById("user-id").value.trim();
+}
 
-        async function deleteMemories() {
-            const userId = currentUserId();
-            if (!userId) { alert("Enter a user id first"); return; }
-            if (!confirm(`Delete ALL memories for user "${userId}"? This cannot be undone.`)) return;
-            try {
-                const response = await fetch(`/users/${encodeURIComponent(userId)}/memories`, {
-                    method: "DELETE",
-                });
-                const data = await response.json();
-                alert(`Deleted ${data.deleted} memories.`);
-                loadMemories();
-            } catch (e) {
-                alert("Delete failed: " + e.message);
-            }
-        }
+async function loadMemories() {
+  const userId = currentUserId();
+  if (!userId) { toast("Enter a user id first"); return; }
+  try {
+    const data = await (await fetch(`/users/${encodeURIComponent(userId)}/memories`)).json();
+    renderMemories(data.memories || []);
+  } catch (e) {
+    toast("Failed to load memories");
+  }
+}
 
-        function renderMemories(memories) {
-            const container = document.getElementById("memories-container");
-            const emptyState = document.getElementById("empty-state");
-            if (memories.length === 0) {
-                container.innerHTML = "";
-                container.appendChild(emptyState);
-                emptyState.style.display = "block";
-                return;
-            }
-            emptyState.style.display = "none";
-            container.innerHTML = memories.map((m) => `
-                <div class="memory-card">
-                    <div class="memory-content">${escapeHtml(m.content)}</div>
-                    <div class="memory-meta">
-                        <span>#${m.id}</span>
-                        <span>${escapeHtml(m.kind)}</span>
-                        <span>importance ${Number(m.importance).toFixed(2)}</span>
-                        <span>accessed ${m.access_count}x</span>
-                        <span>task ${escapeHtml(m.source_task_id || "-")}</span>
-                        <span>${new Date(m.created_at).toLocaleString()}</span>
-                    </div>
-                </div>`).join("");
-        }
+async function deleteMemories() {
+  const userId = currentUserId();
+  if (!userId) { toast("Enter a user id first"); return; }
+  if (!confirm(`Delete ALL memories for user "${userId}"? This cannot be undone.`)) return;
+  try {
+    const data = await (await fetch(`/users/${encodeURIComponent(userId)}/memories`, {
+      method: "DELETE",
+    })).json();
+    toast(`Deleted ${data.deleted} memories.`);
+    loadMemories();
+  } catch (e) {
+    toast("Delete failed: " + e.message);
+  }
+}
 
-        function escapeHtml(text) {
-            const div = document.createElement("div");
-            div.textContent = text == null ? "" : String(text);
-            return div.innerHTML;
-        }
+function renderMemories(memories) {
+  const container = document.getElementById("memories-container");
+  const emptyState = document.getElementById("empty-state");
+  if (!memories.length) {
+    container.innerHTML = "";
+    container.appendChild(emptyState);
+    emptyState.style.display = "block";
+    return;
+  }
+  emptyState.style.display = "none";
+  container.innerHTML = memories.map((m) => `
+    <article class="panel mem-card reveal in">
+      <div class="content">${escapeHtml(m.content)}</div>
+      <div class="meta">
+        <span>#${m.id}</span>
+        <span class="badge ember">${escapeHtml(m.kind)}</span>
+        <span>importance ${Number(m.importance).toFixed(2)}</span>
+        <span>accessed ${m.access_count}×</span>
+        <span>task ${(m.source_task_id || "—").slice(0, 13)}</span>
+        <span>${new Date(m.created_at).toLocaleString()}</span>
+      </div>
+    </article>`).join("");
+}
 
-        document.getElementById("user-id").addEventListener("keydown", (event) => {
-            if (event.key === "Enter") loadMemories();
-        });
-    </script>
+function escapeHtml(text) {
+  const div = document.createElement("div");
+  div.textContent = text == null ? "" : String(text);
+  return div.innerHTML;
+}
+
+document.getElementById("user-id").addEventListener("keydown", (event) => {
+  if (event.key === "Enter") loadMemories();
+});
+</script>
 </body>
 </html>

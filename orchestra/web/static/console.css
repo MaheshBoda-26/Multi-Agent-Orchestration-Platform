@@ -1,0 +1,405 @@
+/* ==========================================================================
+   Orchestra — "Signal Console" design system
+   Dark instrument-panel register. One accent (ember), one neutral ramp,
+   two fonts. All color OKLCH; all motion transform/opacity; reduced-motion
+   respected everywhere.
+   ========================================================================== */
+
+@import url("https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap");
+
+:root {
+  /* Neutrals: deep blue-black ramp (hue 265) */
+  --void:   oklch(0.16 0.02 265);
+  --panel:  oklch(0.21 0.022 265);
+  --panel-2:oklch(0.245 0.024 265);
+  --line:   oklch(0.32 0.025 265);
+  --line-soft: oklch(0.27 0.02 265);
+  --ink:    oklch(0.93 0.008 265);
+  --ink-dim:oklch(0.72 0.015 265);
+  --ink-faint: oklch(0.55 0.018 265);
+
+  /* The one accent: ember */
+  --ember:      oklch(0.74 0.17 55);
+  --ember-hot:  oklch(0.8 0.18 60);
+  --ember-dim:  oklch(0.74 0.17 55 / 0.14);
+  --ember-line: oklch(0.74 0.17 55 / 0.35);
+
+  /* Status hues (data, not decoration) */
+  --ok:      oklch(0.78 0.16 155);
+  --ok-dim:  oklch(0.78 0.16 155 / 0.13);
+  --warn:    oklch(0.8 0.16 85);
+  --warn-dim:oklch(0.8 0.16 85 / 0.13);
+  --err:     oklch(0.68 0.2 22);
+  --err-dim: oklch(0.68 0.2 22 / 0.14);
+  --run:     oklch(0.72 0.13 250);
+  --run-dim: oklch(0.72 0.13 250 / 0.14);
+
+  /* Type */
+  --font-display: "Space Grotesk", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+
+  /* Spacing rhythm (4px base) */
+  --s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px; --s5: 24px;
+  --s6: 32px; --s7: 48px; --s8: 64px; --s9: 96px;
+
+  --radius: 10px;
+  --radius-sm: 6px;
+
+  /* Motion */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --fast: 160ms;
+  --med: 280ms;
+
+  /* z-scale: dropdown < sticky < toast */
+  --z-sticky: 20;
+  --z-toast: 30;
+
+  /* Layout */
+  --shell: 1180px;
+  --nav-h: 60px;
+}
+
+/* Light mode: same structure, daylight Instruments panel. Dark stays default. */
+@media (prefers-color-scheme: light) {
+  :root {
+    --void:   oklch(0.965 0.006 85);
+    --panel:  oklch(1 0 0);
+    --panel-2:oklch(0.975 0.006 85);
+    --line:   oklch(0.88 0.01 85);
+    --line-soft: oklch(0.92 0.008 85);
+    --ink:    oklch(0.24 0.02 70);
+    --ink-dim:oklch(0.42 0.02 70);
+    --ink-faint:oklch(0.55 0.02 70);
+    --ember:      oklch(0.62 0.17 48);
+    --ember-hot:  oklch(0.66 0.18 52);
+    --ember-dim:  oklch(0.62 0.17 48 / 0.10);
+    --ember-line: oklch(0.62 0.17 48 / 0.30);
+    --ok:      oklch(0.55 0.14 152);
+    --ok-dim:  oklch(0.55 0.14 152 / 0.10);
+    --warn:    oklch(0.58 0.13 80);
+    --warn-dim:oklch(0.58 0.13 80 / 0.12);
+    --err:     oklch(0.52 0.19 25);
+    --err-dim: oklch(0.52 0.19 25 / 0.10);
+    --run:     oklch(0.5 0.12 250);
+    --run-dim: oklch(0.5 0.12 250 / 0.10);
+  }
+}
+
+/* ------------------------------------------------------------------ reset */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  background: var(--void);
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-size: 16px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+  min-height: 100vh;
+}
+
+/* Subtle scanline grain over the whole console (pure CSS, no images) */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent 0 2px,
+    oklch(0 0 / 0.012) 2px 3px
+  );
+}
+@media (prefers-color-scheme: light) {
+  body::before { display: none; }
+}
+
+img { max-width: 100%; display: block; }
+button { font: inherit; color: inherit; background: none; border: none; cursor: pointer; }
+a { color: var(--ember); text-decoration: none; }
+a:hover { color: var(--ember-hot); }
+pre, code, kbd { font-family: var(--font-mono); }
+::selection { background: var(--ember-line); color: var(--ink); }
+
+:focus-visible {
+  outline: 2px solid var(--ember);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* ------------------------------------------------------------------ shell */
+.shell {
+  max-width: var(--shell);
+  margin: 0 auto;
+  padding: 0 var(--s5);
+  position: relative;
+  z-index: 1;
+}
+
+/* ------------------------------------------------------------------ type */
+h1, h2, h3, h4 { font-family: var(--font-display); line-height: 1.12; text-wrap: balance; }
+
+.display-1 {
+  font-size: clamp(2.6rem, 6.5vw, 4.6rem);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+}
+.display-2 {
+  font-size: clamp(1.8rem, 3.6vw, 2.6rem);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+.lede {
+  color: var(--ink-dim);
+  font-size: clamp(1.05rem, 1.8vw, 1.25rem);
+  max-width: 58ch;
+}
+
+.mono { font-family: var(--font-mono); }
+.muted { color: var(--ink-dim); }
+.faint { color: var(--ink-faint); }
+.small { font-size: 0.85rem; }
+
+/* Section label: mono tag with rule — the console's one recurring device */
+.tagline {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ember);
+  margin-bottom: var(--s5);
+}
+.tagline::after {
+  content: "";
+  height: 1px;
+  flex: 1;
+  background: linear-gradient(90deg, var(--ember-line), transparent);
+}
+
+/* ------------------------------------------------------------------ nav */
+.console-nav {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-sticky);
+  height: var(--nav-h);
+  display: flex;
+  align-items: center;
+  background: oklch(from var(--void) l c h / 0.82);
+  backdrop-filter: blur(14px);
+  border-bottom: 1px solid var(--line-soft);
+}
+.console-nav .shell {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: var(--s5);
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  color: var(--ink);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  font-size: 1.05rem;
+}
+.brand:hover { color: var(--ink); }
+.brand .spark {
+  width: 12px; height: 12px;
+  border-radius: 50%;
+  background: var(--ember);
+  box-shadow: 0 0 12px var(--ember-line), 0 0 2px var(--ember);
+}
+.nav-links {
+  display: flex;
+  gap: var(--s1);
+  margin-left: auto;
+  align-items: center;
+}
+.nav-links a {
+  color: var(--ink-dim);
+  font-size: 0.92rem;
+  font-weight: 500;
+  padding: var(--s2) var(--s3);
+  border-radius: var(--radius-sm);
+  transition: color var(--fast) var(--ease-out), background var(--fast) var(--ease-out);
+}
+.nav-links a:hover { color: var(--ink); background: var(--panel-2); }
+.nav-links a[aria-current="page"] { color: var(--ember); }
+.nav-cta {
+  margin-left: var(--s2);
+  border: 1px solid var(--ember-line);
+  color: var(--ember) !important;
+}
+.nav-cta:hover { background: var(--ember-dim) !important; }
+@media (max-width: 760px) {
+  .nav-links a:not(.nav-cta) { display: none; }
+}
+
+/* ------------------------------------------------------------------ buttons */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s2);
+  min-height: 44px;
+  padding: 0 var(--s5);
+  border-radius: var(--radius-sm);
+  font-weight: 600;
+  font-size: 0.95rem;
+  border: 1px solid transparent;
+  transition:
+    background var(--fast) var(--ease-out),
+    border-color var(--fast) var(--ease-out),
+    color var(--fast) var(--ease-out),
+    box-shadow var(--fast) var(--ease-out);
+  cursor: pointer;
+}
+.btn:disabled { opacity: 0.55; cursor: wait; }
+.btn-primary {
+  background: var(--ember);
+  color: oklch(0.18 0.03 55);
+  box-shadow: 0 0 0 0 var(--ember-line);
+}
+.btn-primary:hover:not(:disabled) {
+  background: var(--ember-hot);
+  box-shadow: 0 4px 20px var(--ember-line);
+}
+.btn-outline {
+  border-color: var(--line);
+  color: var(--ink);
+  background: transparent;
+}
+.btn-outline:hover:not(:disabled) { border-color: var(--ember-line); color: var(--ember); background: var(--ember-dim); }
+.btn-ghost { color: var(--ink-dim); }
+.btn-ghost:hover:not(:disabled) { color: var(--ink); background: var(--panel-2); }
+.btn-success { background: var(--ok-dim); color: var(--ok); border-color: oklch(from var(--ok) l c h / 0.35); }
+.btn-success:hover:not(:disabled) { background: var(--ok); color: oklch(0.18 0.03 155); }
+.btn-danger { background: var(--err-dim); color: var(--err); border-color: oklch(from var(--err) l c h / 0.35); }
+.btn-danger:hover:not(:disabled) { background: var(--err); color: oklch(0.18 0.03 22); }
+
+/* ------------------------------------------------------------------ panels */
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius);
+}
+.panel-pad { padding: var(--s5); }
+
+.panel-title {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s4);
+  padding: var(--s4) var(--s5);
+  border-bottom: 1px solid var(--line-soft);
+  font-weight: 600;
+  font-size: 1rem;
+}
+.panel-title .mono { font-size: 0.78rem; color: var(--ink-faint); }
+
+/* ------------------------------------------------------------------ badges */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.05em;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid;
+  white-space: nowrap;
+}
+.badge::before {
+  content: "";
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.badge.ok   { color: var(--ok);   background: var(--ok-dim);   border-color: oklch(from var(--ok) l c h / 0.4); }
+.badge.warn { color: var(--warn); background: var(--warn-dim); border-color: oklch(from var(--warn) l c h / 0.4); }
+.badge.err  { color: var(--err);  background: var(--err-dim);  border-color: oklch(from var(--err) l c h / 0.4); }
+.badge.run  { color: var(--run);  background: var(--run-dim);  border-color: oklch(from var(--run) l c h / 0.4); }
+.badge.run::before { animation: pulse 1.6s ease-in-out infinite; }
+.badge.ember { color: var(--ember); background: var(--ember-dim); border-color: var(--ember-line); }
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.45; transform: scale(0.8); }
+}
+
+/* Status dot (task lists) */
+.dot {
+  display: inline-block;
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.dot.completed { background: var(--ok); }
+.dot.running, .dot.queued { background: var(--run); animation: pulse 1.6s ease-in-out infinite; }
+.dot.awaiting_human { background: var(--warn); animation: pulse 1.6s ease-in-out infinite; }
+.dot.failed, .dot.cancelled { background: var(--err); }
+
+/* ------------------------------------------------------------------ data */
+.kv {
+  display: grid;
+  grid-template-columns: 150px 1fr;
+  gap: var(--s2) var(--s4);
+  font-size: 0.92rem;
+}
+.kv dt { color: var(--ink-faint); }
+.kv dd { color: var(--ink); overflow-wrap: anywhere; }
+
+.code-box {
+  background: var(--void);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-sm);
+  padding: var(--s4);
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  line-height: 1.6;
+  color: var(--ink-dim);
+  overflow: auto;
+  max-height: 340px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.light .code-box { background: var(--panel-2); }
+
+/* ------------------------------------------------------------------ empty state */
+.empty {
+  text-align: center;
+  padding: var(--s8) var(--s5);
+  color: var(--ink-faint);
+}
+.empty h3 { color: var(--ink-dim); margin-bottom: var(--s2); font-size: 1.1rem; }
+
+/* ------------------------------------------------------------------ reveal choreography */
+.reveal {
+  opacity: 0;
+  transform: translateY(16px);
+}
+.reveal.in {
+  opacity: 1;
+  transform: none;
+  transition: opacity 0.55s var(--ease-out), transform 0.55s var(--ease-out);
+  transition-delay: var(--stagger, 0ms);
+}
+
+/* ------------------------------------------------------------------ reduced motion: kill everything */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .reveal { opacity: 1; transform: none; }
+}

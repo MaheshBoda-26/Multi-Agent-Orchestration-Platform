@@ -1,39 +1,229 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Orchestra - Trace Explorer</title>
-    <link rel="stylesheet" href="/static/approval.css">
-    <link rel="stylesheet" href="/static/explorer.css">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Orchestra — Trace Explorer</title>
+<link rel="stylesheet" href="/static/console.css">
+<style>
+.page { padding: var(--s6) 0 var(--s8); }
+.page-head { display: flex; justify-content: space-between; align-items: baseline; gap: var(--s4); margin-bottom: var(--s6); flex-wrap: wrap; }
+
+.explorer-layout {
+  display: grid;
+  grid-template-columns: 340px minmax(0, 1fr);
+  gap: var(--s4);
+  align-items: start;
+}
+@media (max-width: 920px) { .explorer-layout { grid-template-columns: 1fr; } }
+
+.task-list-panel { position: sticky; top: calc(var(--nav-h) + var(--s4)); }
+.task-list { list-style: none; max-height: calc(100vh - var(--nav-h) - 140px); overflow: auto; }
+.task-list li {
+  padding: var(--s3) var(--s4);
+  border-bottom: 1px solid var(--line-soft);
+  cursor: pointer;
+  border-left: 2px solid transparent;
+  transition: background var(--fast) var(--ease-out), border-color var(--fast) var(--ease-out);
+}
+/* note: border-left here is a *selection rail* tied to state, not a decorative side-stripe */
+.task-list li:hover { background: var(--panel-2); }
+.task-list li.selected { background: var(--ember-dim); border-left-color: var(--ember); }
+.task-list .request {
+  font-size: 0.9rem; color: var(--ink);
+  display: flex; gap: 8px; align-items: baseline;
+}
+.task-list .request span.txt { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.task-list .meta {
+  display: flex; justify-content: space-between;
+  font-family: var(--font-mono); font-size: 0.7rem; color: var(--ink-faint);
+  margin-top: 3px;
+}
+
+.detail-stack { display: grid; gap: var(--s4); }
+.detail-head { display: flex; justify-content: space-between; gap: var(--s4); align-items: baseline; flex-wrap: wrap; }
+.detail-head .request { font-weight: 600; font-size: 1.05rem; display: flex; gap: 10px; align-items: baseline; }
+
+.span-tree { list-style: none; }
+.span-tree ul { list-style: none; padding-left: var(--s5); border-left: 1px solid var(--line-soft); margin-left: 6px; }
+.span-row {
+  display: flex; gap: var(--s3); align-items: baseline;
+  padding: 5px 8px; margin: 1px 0;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background var(--fast) var(--ease-out);
+}
+.span-row:hover { background: var(--panel-2); }
+.span-name { font-family: var(--font-mono); font-size: 0.82rem; font-weight: 500; }
+.span-name.kind-llm { color: var(--ember); }
+.span-name.kind-tool { color: var(--run); }
+.span-name.kind-agent { color: var(--ink); }
+.span-latency { font-family: var(--font-mono); font-size: 0.7rem; color: var(--ink-faint); }
+.span-attrs {
+  display: none;
+  margin: 4px 0 8px 26px;
+  background: var(--void);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-sm);
+  padding: var(--s3);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--ink-dim);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.span-attrs.open { display: block; }
+@media (prefers-color-scheme: light) { .span-attrs { background: var(--panel-2); } }
+
+.skel { height: 14px; border-radius: 4px; background: linear-gradient(90deg, var(--panel-2) 25%, var(--line-soft) 50%, var(--panel-2) 75%); background-size: 200% 100%; animation: shimmer 1.3s linear infinite; }
+@keyframes shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+</style>
 </head>
 <body>
-    <div class="container">
-        <header>
-            <h1>Trace Explorer</h1>
-            <div class="header-controls">
-                <a href="/dashboard" class="task-link">Dashboard &rarr;</a>
-                <a href="/approvals/ui" class="task-link">Approvals &rarr;</a>
-                <a href="/memory/ui" class="task-link">Memory &rarr;</a>
-                <span id="last-refresh" class="muted"></span>
-                <button class="refresh-btn" onclick="loadTasks()">Refresh</button>
-            </div>
-        </header>
+<script src="/static/console.js"></script>
+<script>document.write(consoleNav("/explorer"));</script>
 
-        <div class="explorer-layout">
-            <aside class="task-list">
-                <h2>Tasks</h2>
-                <ul id="tasks"></ul>
-            </aside>
-            <main class="task-detail" id="detail">
-                <div class="empty-state">
-                    <h3>Select a task</h3>
-                    <p>Pick a task on the left to inspect its plan, results and full span trace.</p>
-                </div>
-            </main>
-        </div>
+<main class="shell page">
+  <div class="page-head">
+    <h1 class="display-2">Trace explorer</h1>
+    <span class="mono muted" id="last-refresh"></span>
+  </div>
+
+  <div class="explorer-layout">
+    <aside class="panel task-list-panel reveal">
+      <div class="panel-title">Tasks <span class="mono">GET /tasks</span></div>
+      <ul class="task-list" id="tasks">
+        <li style="cursor:default"><div class="skel" style="width:80%"></div></li>
+      </ul>
+    </aside>
+
+    <div class="detail-stack" id="detail">
+      <div class="panel panel-pad empty">
+        <h3>Select a task</h3>
+        <p>Its plan, result and full span trace render here — every agent, tool and model call.</p>
+      </div>
     </div>
+  </div>
+</main>
 
-    <script src="/static/explorer.js"></script>
+<script>
+"use strict";
+consoleBoot("/explorer");
+
+let selectedTaskId = null;
+const detail = document.getElementById("detail");
+
+/* The span tree: agent spans in ink, llm calls in ember, tools in run-blue. */
+function spanKind(name) {
+  if (name.startsWith("llm.")) return "kind-llm";
+  if (name.startsWith("tool.") || name.includes("tool")) return "kind-tool";
+  if (["supervisor.plan","specialist.run","reviewer.review","synthesize","memory.retrieve","memory.extract"].includes(name)) return "kind-agent";
+  return "";
+}
+
+async function loadTasks() {
+  try {
+    const data = await (await fetch("/tasks?limit=50")).json();
+    renderTasks(data.tasks || []);
+    document.getElementById("last-refresh").textContent = "updated " + new Date().toLocaleTimeString();
+  } catch (e) { /* keep the last good list */ }
+}
+
+function renderTasks(tasks) {
+  const list = document.getElementById("tasks");
+  if (!tasks.length) {
+    list.innerHTML = `<li style="cursor:default"><div class="empty" style="padding:var(--s5)"><h3>No tasks yet</h3><a href="/#new-task">Dispatch the first one →</a></div></li>`;
+    return;
+  }
+  list.innerHTML = tasks.map((task) => `
+    <li data-id="${task.task_id}" class="${task.task_id === selectedTaskId ? "selected" : ""}">
+      <div class="request"><span class="dot ${task.status}"></span><span class="txt">${escapeHtml(task.request)}</span></div>
+      <div class="meta"><span>${task.status}</span><span>${timeAgo(task.created_at)}</span></div>
+    </li>`).join("");
+  list.querySelectorAll("li[data-id]").forEach((li) => {
+    li.addEventListener("click", () => selectTask(li.dataset.id));
+  });
+}
+
+async function selectTask(taskId) {
+  selectedTaskId = taskId;
+  document.querySelectorAll("#tasks li").forEach((li) =>
+    li.classList.toggle("selected", li.dataset.id === taskId));
+  history.replaceState(null, "", `/tasks/${taskId}/explorer`);
+  detail.innerHTML = `<div class="panel panel-pad"><div class="skel" style="width:55%"></div><div class="skel" style="width:80%;margin-top:10px"></div><div class="skel" style="width:65%;margin-top:10px"></div></div>`;
+  await loadDetail(taskId);
+}
+
+async function loadDetail(taskId) {
+  const [task, trace] = await Promise.all([
+    fetch(`/tasks/${taskId}`).then((r) => r.json()).catch(() => null),
+    fetch(`/tasks/${taskId}/trace`).then((r) => r.json()).catch(() => null),
+  ]);
+  if (!task || taskId !== selectedTaskId) return;
+  detail.innerHTML = `
+    <div class="panel panel-pad">
+      <div class="detail-head">
+        <span class="request"><span class="dot ${task.status}"></span>${escapeHtml(task.request)}</span>
+        <span class="badge ${task.status === "completed" ? "ok" : task.status === "failed" ? "err" : "run"}">${task.status}</span>
+      </div>
+    </div>
+    <section class="panel">
+      <div class="panel-title">Plan <span class="mono">${(task.plan || []).length} subtasks</span></div>
+      <div class="panel-pad"><div class="code-box">${escapeHtml(JSON.stringify(task.plan ?? [], null, 2))}</div></div>
+    </section>
+    <section class="panel">
+      <div class="panel-title">Result <span class="mono">final_response + subtasks</span></div>
+      <div class="panel-pad"><div class="code-box">${escapeHtml(JSON.stringify(task.result ?? task.error ?? {}, null, 2))}</div></div>
+    </section>
+    <section class="panel">
+      <div class="panel-title">Trace <span class="mono">click a span for attributes</span></div>
+      <div class="panel-pad">${renderSpanTree((trace && trace.roots) || [])}</div>
+    </section>`;
+  detail.querySelectorAll(".span-row").forEach((row) => {
+    row.addEventListener("click", () => {
+      const attrs = row.nextElementSibling;
+      if (attrs && attrs.classList.contains("span-attrs")) attrs.classList.toggle("open");
+    });
+  });
+}
+
+function renderSpanTree(roots) {
+  if (!roots.length) return '<p class="muted" style="padding: var(--s4)">No spans recorded for this task.</p>';
+  return `<ul class="span-tree">${roots.map(renderSpanNode).join("")}</ul>`;
+}
+
+function renderSpanNode(node) {
+  const start = node.start_time ? Date.parse(node.start_time) : null;
+  const end = node.end_time ? Date.parse(node.end_time) : null;
+  const ms = start && end ? Math.max(0, end - start) : null;
+  const attrs = Object.entries(node.attributes || {})
+    .map(([k, v]) => `${k}=${JSON.stringify(v)}`).join("\n");
+  const children = (node.children || []).map(renderSpanNode).join("");
+  return `
+    <li>
+      <div class="span-row">
+        <span class="span-name ${spanKind(node.name)}">${escapeHtml(node.name)}</span>
+        <span class="span-latency">${ms === null ? "" : ms + " ms"}</span>
+      </div>
+      <div class="span-attrs">${escapeHtml(attrs || "(no attributes)")}</div>
+      ${children ? `<ul>${children}</ul>` : ""}
+    </li>`;
+}
+
+function escapeHtml(text) {
+  const div = document.createElement("div");
+  div.textContent = text == null ? "" : String(text);
+  return div.innerHTML;
+}
+
+const routeTask = window.location.pathname.match(/\/tasks\/([^/]+)\/explorer/);
+if (routeTask) {
+  selectedTaskId = routeTask[1];
+  loadTasks().then(() => loadDetail(selectedTaskId));
+} else {
+  loadTasks();
+}
+setInterval(loadTasks, 5000);
+</script>
 </body>
 </html>

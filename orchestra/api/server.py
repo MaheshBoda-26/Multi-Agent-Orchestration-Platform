@@ -414,7 +414,13 @@ async def memory_ui():
         return HTMLResponse(content=f.read())
 
 
-# --- Stats, dashboards and the trace explorer (Phase 8) ----------------------
+# --- Landing, stats, dashboards and the trace explorer (Phase 8/9) -----------
+
+@app.get("/", response_class=HTMLResponse)
+async def landing():
+    with open("web/index.html") as f:
+        return HTMLResponse(content=f.read())
+
 
 @app.get("/stats/cost")
 async def stats_cost() -> Dict[str, Any]:

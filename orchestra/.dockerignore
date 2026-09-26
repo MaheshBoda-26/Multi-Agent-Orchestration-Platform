@@ -11,6 +11,8 @@ evals/output
 security/output
 tests
 docs
-.prompt-cache
+prompt.md
+PRODUCT.md
+.DS_Store
 .env
 .env.local

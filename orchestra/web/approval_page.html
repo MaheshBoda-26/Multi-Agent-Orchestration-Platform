@@ -1,29 +1,121 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Orchestra - Human Approval Queue</title>
-    <link rel="stylesheet" href="/static/approval.css">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Orchestra — Approval Queue</title>
+<link rel="stylesheet" href="/static/console.css">
+<style>
+.page { padding: var(--s6) 0 var(--s8); }
+.page-head { display: flex; justify-content: space-between; align-items: baseline; gap: var(--s4); margin-bottom: var(--s5); flex-wrap: wrap; }
+
+.approval-card { margin-bottom: var(--s4); transition: border-color var(--med) var(--ease-out); }
+.approval-card:hover { border-color: var(--line); }
+.approval-card .card-header {
+  display: flex; justify-content: space-between; align-items: center; gap: var(--s4);
+  padding: var(--s4) var(--s5);
+  border-bottom: 1px solid var(--line-soft);
+  flex-wrap: wrap;
+}
+.card-body { padding: var(--s5); }
+
+.detail-row {
+  display: grid; grid-template-columns: 150px 1fr; gap: var(--s4);
+  padding: var(--s2) 0;
+  font-size: 0.92rem;
+}
+.detail-label { color: var(--ink-faint); }
+.detail-value { overflow-wrap: anywhere; }
+.detail-value code {
+  background: var(--void);
+  border: 1px solid var(--line-soft);
+  border-radius: 4px;
+  padding: 1px 6px;
+  font-size: 0.8rem;
+}
+
+.context-box {
+  background: var(--void);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-sm);
+  padding: var(--s4);
+  margin-top: var(--s4);
+  max-height: 300px;
+  overflow: auto;
+}
+.context-box strong { display: block; margin-bottom: var(--s2); font-size: 0.85rem; color: var(--ink-faint); }
+.context-box pre { white-space: pre-wrap; font-size: 0.78rem; color: var(--ink-dim); overflow-wrap: anywhere; }
+@media (prefers-color-scheme: light) { .context-box { background: var(--panel-2); } }
+
+.actions {
+  display: flex; gap: var(--s2); margin-top: var(--s5); padding-top: var(--s4);
+  border-top: 1px solid var(--line-soft); flex-wrap: wrap;
+}
+
+.mod-plan, .clarify-log {
+  margin-top: var(--s4);
+  padding: var(--s4);
+  background: var(--panel-2);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-sm);
+}
+.mod-plan textarea, .clarify-form textarea {
+  width: 100%; min-height: 150px;
+  padding: var(--s3);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-sm);
+  background: var(--void);
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  resize: vertical;
+}
+.mod-plan .hint { color: var(--ink-faint); font-size: 0.8rem; margin-top: var(--s2); }
+.form-actions { display: flex; gap: var(--s2); margin-top: var(--s3); }
+.clarify-log .entries .entry { margin-bottom: var(--s3); }
+.clarify-log .q { font-weight: 600; }
+.clarify-log .a { color: var(--ink-dim); margin-left: var(--s4); white-space: pre-wrap; }
+.clarify-form { display: flex; gap: var(--s2); margin-top: var(--s2); align-items: stretch; }
+.clarify-form textarea { min-height: 60px; flex: 1; font-family: inherit; font-size: 0.9rem; }
+
+.status-note { margin-top: var(--s3); font-size: 0.88rem; color: var(--ok); }
+.error-note { margin-top: var(--s3); font-size: 0.88rem; color: var(--err); }
+
+.empty h3 { margin-bottom: var(--s2); }
+.empty .ok-ring {
+  width: 56px; height: 56px;
+  margin: 0 auto var(--s4);
+  border-radius: 50%;
+  border: 1px solid oklch(from var(--ok) l c h / 0.4);
+  background: var(--ok-dim);
+  display: grid; place-items: center;
+  color: var(--ok);
+}
+</style>
 </head>
 <body>
-    <div class="container">
-        <header>
-            <h1>Human Approval Queue</h1>
-            <div class="header-controls">
-                <span id="last-refresh" class="muted"></span>
-                <button class="refresh-btn" onclick="loadApprovals()">Refresh</button>
-            </div>
-        </header>
+<script src="/static/console.js"></script>
+<script>document.write(consoleNav("/approvals/ui"));</script>
 
-        <div id="approvals-container">
-            <div class="empty-state" id="empty-state">
-                <h3>No Pending Approvals</h3>
-                <p>All tasks are running smoothly. No human intervention needed.</p>
-            </div>
-        </div>
+<main class="shell page">
+  <div class="page-head">
+    <h1 class="display-2">Approval queue</h1>
+    <span class="mono muted" id="last-refresh"></span>
+  </div>
+
+  <div id="approvals-container">
+    <div class="empty" id="empty-state">
+      <div class="ok-ring" aria-hidden="true"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m5 13 4 4L19 7"/></svg></div>
+      <h3>Queue clear</h3>
+      <p>No runs are waiting on a human. Everything the agents do alone is within policy.</p>
     </div>
+  </div>
+</main>
 
-    <script src="/static/approval.js"></script>
+<script src="/static/approval.js"></script>
+<script>
+  // approval.js owns polling + rendering + decisions; this page only mounts chrome.
+  consoleBoot("/approvals/ui");
+</script>
 </body>
 </html>
