@@ -252,8 +252,30 @@ class OrchestraGraph:
         for task in plan:
             subtask_id = task["id"]
             result = results.get(subtask_id)
-            if result is None or result.status != "success":
-                continue  # accepted/retry/escalate already decided, or hard error
+            if result is None:
+                continue
+
+            if result.status == "error":
+                # A specialist crash (tool/LLM failure) gets one different-approach
+                # retry, then escalates instead of hanging the run.
+                attempts_made = attempts.get(subtask_id, 0) + 1
+                attempt_updates[subtask_id] = attempts_made
+                if attempts_made < MAX_SUBTASK_ATTEMPTS:
+                    updates[subtask_id] = result.model_copy(
+                        update={"status": "retry", "retry_count": attempts_made}
+                    )
+                    feedback[subtask_id] = (
+                        f"The previous attempt failed with: {result.error}. "
+                        "Try a different approach."
+                    )
+                else:
+                    updates[subtask_id] = result.model_copy(
+                        update={"status": "escalate", "retry_count": attempts_made}
+                    )
+                continue
+
+            if result.status != "success":
+                continue  # accepted/retry/escalate already decided
 
             review = await self.reviewer.review(
                 task_description=task["description"],

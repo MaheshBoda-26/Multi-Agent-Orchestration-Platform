@@ -110,8 +110,8 @@ class DockerSandboxRunner:
     @staticmethod
     def _logs(container: Any, *, stdout: bool) -> str:
         try:
-            return container.logs(stdout=stdout, stderr=not stdout).decode(
-                "utf-8", errors="replace"
-            )
+            raw = container.logs(stdout=stdout, stderr=not stdout)
         except Exception:
             return ""
+        decoded: str = bytes(raw).decode("utf-8", errors="replace")
+        return decoded
