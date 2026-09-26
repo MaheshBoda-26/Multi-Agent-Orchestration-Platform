@@ -1,6 +1,5 @@
 """Judge validation (Task 33): sample file integrity and report shape."""
 import json
-from pathlib import Path
 
 import pytest
 

@@ -16,7 +16,6 @@ import sys
 from pathlib import Path
 from typing import Any, Dict, List
 
-from evals.graders import judge_agreement
 from llm.factory import build_provider
 from llm.routing import load_routing
 
