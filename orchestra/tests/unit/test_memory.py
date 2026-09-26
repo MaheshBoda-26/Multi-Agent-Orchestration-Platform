@@ -1,19 +1,23 @@
 import pytest
-import asyncio
 from unittest.mock import MagicMock, AsyncMock
-from memory.store import MemoryStore, MemoryEntry, init_memory_table
-from memory.extract import MemoryExtractor, MemoryExtraction
-from memory.retrieve import MemoryRetriever, MemoryContext
+from memory.store import MemoryStore, MemoryEntry
+from memory.extract import MemoryExtractor
+from memory.retrieve import MemoryRetriever
 from llm.fake import FakeProvider
 
 @pytest.fixture
 def mock_pool():
     pool = MagicMock()
     conn = AsyncMock()
-    pool.acquire = AsyncMock(return_value=AsyncMock(__aenter__=AsyncMock(return_value=conn)))
     # Mock Postgres RETURNING id
     conn.fetchrow = AsyncMock(return_value={'id': 1})
     conn.execute = AsyncMock()
+
+    # pool.acquire() must behave like asyncpg's async context manager
+    acquire_cm = MagicMock()
+    acquire_cm.__aenter__ = AsyncMock(return_value=conn)
+    acquire_cm.__aexit__ = AsyncMock(return_value=False)
+    pool.acquire = MagicMock(return_value=acquire_cm)
     return pool
 
 @pytest.fixture

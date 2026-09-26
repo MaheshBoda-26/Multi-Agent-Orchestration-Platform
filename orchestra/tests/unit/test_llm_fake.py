@@ -1,5 +1,4 @@
 import pytest
-import asyncio
 from llm.fake import FakeProvider
 from pydantic import BaseModel
 

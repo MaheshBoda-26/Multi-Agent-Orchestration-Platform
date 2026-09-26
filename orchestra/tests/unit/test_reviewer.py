@@ -1,6 +1,6 @@
 import pytest
 from pydantic import BaseModel
-from agents.reviewer import ReviewerAgent, ReviewResult, ReviewScore
+from agents.reviewer import ReviewerAgent, ReviewScore
 from llm.fake import FakeProvider
 
 class MockModel(BaseModel):

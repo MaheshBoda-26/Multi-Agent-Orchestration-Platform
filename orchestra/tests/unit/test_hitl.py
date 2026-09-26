@@ -1,4 +1,3 @@
-import pytest
 from graph.hitl import HITLManager, ESCALATION_TRIGGERS, ESCALATION_LEVELS
 from tools.permissions import permission_manager
 
@@ -16,10 +15,10 @@ def test_escalation_levels():
     assert "take_over" in ESCALATION_LEVELS
     
     notify = ESCALATION_LEVELS["notify"]
-    assert notify.requires_response == False
+    assert not notify.requires_response
     
     approve = ESCALATION_LEVELS["approve_action"]
-    assert approve.requires_response == True
+    assert approve.requires_response
 
 def test_hitl_manager_payload():
     manager = HITLManager()
@@ -34,15 +33,15 @@ def test_hitl_manager_payload():
     assert payload["escalation_level"] == "approve_action"
     assert payload["trigger"] == "sensitive_tool_requested"
     assert payload["proposed_action"] == "Delete file"
-    assert payload["requires_response"] == True
+    assert payload["requires_response"]
 
 def test_permission_manager_sensitive_tools():
     # Reset for test
     permission_manager._sensitive_tools.clear()
     
     permission_manager.mark_sensitive("file_write")
-    assert permission_manager.is_sensitive("file_write") == True
-    assert permission_manager.is_sensitive("file_read") == False
+    assert permission_manager.is_sensitive("file_write")
+    assert not permission_manager.is_sensitive("file_read")
     
     permission_manager.mark_sensitive("http_get")
-    assert permission_manager.is_sensitive("http_get") == True
+    assert permission_manager.is_sensitive("http_get")

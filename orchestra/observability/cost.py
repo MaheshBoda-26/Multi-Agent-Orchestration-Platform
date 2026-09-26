@@ -1,6 +1,6 @@
-from typing import Dict, Any, Optional
+from typing import Dict, Optional
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 import asyncpg
 
 @dataclass
@@ -40,7 +40,7 @@ class CostTracker:
         self.current_task: Optional[TaskCost] = None
 
     def start_task(self, task_id: str):
-        self.current_task = TaskCost(task_id=task_id, start_time=datetime.utcnow())
+        self.current_task = TaskCost(task_id=task_id, start_time=datetime.now(timezone.utc))
 
     def record_llm_call(self, agent: str, model: str, prompt_tokens: int, 
                         completion_tokens: int, cost: float):
@@ -49,7 +49,7 @@ class CostTracker:
 
     def finish_task(self) -> Optional[TaskCost]:
         if self.current_task:
-            self.current_task.end_time = datetime.utcnow()
+            self.current_task.end_time = datetime.now(timezone.utc)
             return self.current_task
         return None
 

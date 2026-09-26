@@ -1,7 +1,4 @@
 import pytest
-import asyncio
-import os
-import shutil
 from tools.registry import ToolRegistry, ToolSchema, ToolResult
 from tools.builtin.file_tools import FileReadTool, FileWriteTool
 

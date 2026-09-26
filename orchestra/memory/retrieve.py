@@ -1,7 +1,7 @@
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any
 from pydantic import BaseModel
 from llm.provider import LLMProvider
-from .store import MemoryStore, MemoryEntry
+from .store import MemoryStore
 
 class MemoryContext(BaseModel):
     """Structured context derived from retrieved memories."""
@@ -17,15 +17,11 @@ class MemoryRetriever:
         self.llm = llm
 
     async def retrieve(self, user_id: str, current_request: str) -> MemoryContext:
-        # 1. Generate embedding for current request (simulated)
-        # In real implementation: embedding = embedding_model.embed(current_request)
-        dummy_embedding = [0.0] * 1536 
-        
-        # 2. Query ChromaDB for similar tasks
-        # simulated result
-        similar_memories = [] 
-        # if self.store.chroma: 
-        #     similar_memories = self.store.chroma.query(dummy_embedding, filter={"user_id": user_id})
+        # STUB: retrieval is not wired yet. The real implementation embeds the
+        # request, queries the user's Chroma collection, and ranks the hits:
+        #   embedding = await embedding_model.embed(current_request)
+        #   hits = self.store.chroma.query(embedding, filter={"user_id": user_id})
+        similar_memories: list = []
         
         # 3. Synthesize memories into planning context
         if not similar_memories:

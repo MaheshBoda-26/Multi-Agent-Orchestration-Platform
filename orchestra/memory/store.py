@@ -1,9 +1,8 @@
-import asyncio
 import json
-from typing import Dict, Any, List, Optional
+from typing import Any, List, Optional
 from pydantic import BaseModel, Field
 import asyncpg
-from datetime import datetime
+from datetime import datetime, timezone
 
 class MemoryEntry(BaseModel):
     """A single unit of long-term memory."""
@@ -17,7 +16,7 @@ class MemoryEntry(BaseModel):
     facts: List[str]
     preferences: List[str] = Field(default_factory=list)
     embedding: Optional[List[float]] = None
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     access_count: int = 0
 
 class MemoryStore:
