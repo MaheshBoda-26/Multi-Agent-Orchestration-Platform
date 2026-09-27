@@ -77,6 +77,11 @@
 .clarify-log .a { color: var(--ink-dim); margin-left: var(--s4); white-space: pre-wrap; }
 .clarify-form { display: flex; gap: var(--s2); margin-top: var(--s2); align-items: stretch; }
 .clarify-form textarea { min-height: 60px; flex: 1; font-family: inherit; font-size: 0.9rem; }
+@media (max-width: 720px) {
+  .detail-row { grid-template-columns: 1fr; gap: 2px; }
+  .clarify-form { flex-wrap: wrap; }
+  .clarify-form textarea { flex: 1 1 100%; }
+}
 
 .status-note { margin-top: var(--s3); font-size: 0.88rem; color: var(--ok); }
 .error-note { margin-top: var(--s3); font-size: 0.88rem; color: var(--err); }
@@ -117,5 +122,10 @@
   // approval.js owns polling + rendering + decisions; this page only mounts chrome.
   consoleBoot("/approvals/ui");
 </script>
+
+<footer class="footer"><div class="shell">
+  <span>Orchestra console — human gates keep the agents inside policy.</span>
+  <nav><a href="/">About</a><a href="/explorer">Explorer</a></nav>
+</div></footer>
 </body>
 </html>

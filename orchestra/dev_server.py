@@ -12,7 +12,7 @@ import json
 import time
 import uuid
 from datetime import datetime, timezone
-from http.server import HTTPServer, SimpleHTTPRequestHandler
+from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
 from pathlib import Path
 
 WEB = Path(__file__).parent / "web"
@@ -139,6 +139,10 @@ class Handler(SimpleHTTPRequestHandler):
     # ---- routing
     def do_GET(self):
         p = self.path.split("?")[0].rstrip("/")
+        if p == "/favicon.ico":
+            self.send_response(204)
+            self.end_headers()
+            return
         if p in ("", "/index.html"):
             return self._page("index.html")
         if p == "/explorer":
@@ -252,6 +256,6 @@ class Handler(SimpleHTTPRequestHandler):
 if __name__ == "__main__":
     import sys
     port = int(sys.argv[1]) if len(sys.argv) > 1 else 8000
-    server = HTTPServer(("127.0.0.1", port), Handler)
+    server = ThreadingHTTPServer(("127.0.0.1", port), Handler)
     print(f"Orchestra dev console → http://localhost:{port}")
     server.serve_forever()

@@ -15,7 +15,8 @@
   gap: var(--s4);
   align-items: start;
 }
-@media (max-width: 920px) { .explorer-layout { grid-template-columns: 1fr; } }
+.explorer-layout > * { min-height: 460px; }
+@media (max-width: 920px) { .explorer-layout { grid-template-columns: minmax(0, 1fr); } }
 
 .task-list-panel { position: sticky; top: calc(var(--nav-h) + var(--s4)); }
 .task-list { list-style: none; max-height: calc(100vh - var(--nav-h) - 140px); overflow: auto; }
@@ -225,5 +226,10 @@ if (routeTask) {
 }
 setInterval(loadTasks, 5000);
 </script>
+
+<footer class="footer"><div class="shell">
+  <span>Orchestra console — every run, every span, replayable.</span>
+  <nav><a href="/">About</a><a href="/dashboard">Dashboard</a></nav>
+</div></footer>
 </body>
 </html>

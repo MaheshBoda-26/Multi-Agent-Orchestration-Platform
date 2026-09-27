@@ -401,3 +401,33 @@ h1, h2, h3, h4 {
   }
   .reveal { opacity: 1; transform: none; }
 }
+
+/* ------------------------------------------------------------------ page footer */
+.footer {
+  margin-top: var(--s8);
+  padding: var(--s5) 0;
+  border-top: 1px solid var(--hairline);
+  color: var(--ink-faint);
+  font-size: 0.85rem;
+}
+.footer .shell {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s4);
+  flex-wrap: wrap;
+}
+.footer nav { display: flex; gap: var(--s5); }
+.footer a { color: var(--ink-dim); text-decoration: none; }
+.footer a:hover { color: var(--link); }
+
+/* neutral outline button (e.g. Take Over) — base .btn has a transparent border */
+.btn-secondary {
+  border-color: var(--hairline);
+  color: var(--ink);
+  background: transparent;
+}
+.btn-secondary:hover:not(:disabled) { border-color: var(--ink-dim); background: var(--raised); }
+
+/* panels may contain wide tables — scroll inside the card, never the page */
+.panel { min-width: 0; overflow-x: auto; }

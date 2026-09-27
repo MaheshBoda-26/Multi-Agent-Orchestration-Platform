@@ -49,7 +49,8 @@
   gap: var(--s4);
   align-items: start;
 }
-@media (max-width: 940px) { .dash-grid { grid-template-columns: 1fr; } }
+@media (max-width: 940px) { .dash-grid { grid-template-columns: minmax(0, 1fr); } }
+.dash-grid > div { min-width: 0; }
 
 .panel table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
 .panel th {
@@ -66,6 +67,7 @@
 .panel td { padding: var(--s3) var(--s5); border-bottom: 1px solid var(--line-soft); }
 .panel tr:last-child td { border-bottom: none; }
 .panel td.num, .panel th.num { text-align: right; font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+#models-body td:first-child { white-space: nowrap; }
 .panel tbody tr { transition: background var(--fast) var(--ease-out); }
 .panel tbody tr:hover { background: var(--panel-2); }
 
@@ -119,7 +121,7 @@
       <section class="panel reveal" aria-label="Cost by model">
         <div class="panel-title">Cost by model <span class="mono">run_metadata.model_breakdown</span></div>
         <table>
-          <thead><tr><th>Model</th><th class="num">Prompt</th><th class="num">Completion</th><th class="num">Cost (USD)</th><th style="width:26%"></th></tr></thead>
+          <thead><tr><th>Model</th><th class="num">Prompt</th><th class="num">Completion</th><th class="num">Cost</th><th style="width:26%"></th></tr></thead>
           <tbody id="models-body"><tr><td colspan="5"><div class="skel" style="width:70%"></div></td></tr></tbody>
         </table>
         <div class="empty" id="models-empty" style="display:none;padding:var(--s5)">
