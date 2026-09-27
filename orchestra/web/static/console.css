@@ -91,7 +91,12 @@ body {
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
   min-height: 100vh;
+  display: flex;
+  flex-direction: column;
 }
+
+/* main grows so the footer always sits at the bottom of the viewport */
+main { flex: 1 0 auto; }
 
 img { max-width: 100%; display: block; }
 button { font: inherit; color: inherit; background: none; border: none; cursor: pointer; }
@@ -431,3 +436,6 @@ h1, h2, h3, h4 {
 
 /* panels may contain wide tables — scroll inside the card, never the page */
 .panel { min-width: 0; overflow-x: auto; }
+
+/* long pill labels (jump links) wrap instead of overflowing their card */
+.btn { white-space: normal; min-width: 0; }
