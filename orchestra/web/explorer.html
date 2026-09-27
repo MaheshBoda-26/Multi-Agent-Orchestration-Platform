@@ -6,14 +6,14 @@
 <title>Orchestra — Trace Explorer</title>
 <link rel="stylesheet" href="/static/console.css">
 <style>
-.page { padding: var(--s6) 0 var(--s8); }
+.page { padding-top: var(--s6); padding-bottom: var(--s8); }
 .page-head { display: flex; justify-content: space-between; align-items: baseline; gap: var(--s4); margin-bottom: var(--s6); flex-wrap: wrap; }
 
 .explorer-layout {
   display: grid;
   grid-template-columns: 340px minmax(0, 1fr);
   gap: var(--s4);
-  align-items: start;
+  align-items: stretch;
 }
 .explorer-layout > * { min-height: 460px; }
 @media (max-width: 920px) { .explorer-layout { grid-template-columns: minmax(0, 1fr); } }
