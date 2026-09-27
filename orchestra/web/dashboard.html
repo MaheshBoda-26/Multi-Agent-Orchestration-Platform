@@ -27,9 +27,10 @@
 }
 .metric .num {
   font-family: var(--font-mono);
-  font-size: clamp(1.7rem, 2.6vw, 2.3rem);
+  font-size: clamp(1.7rem, 2.4vw, 2.1rem);
   font-weight: 600;
   letter-spacing: -0.02em;
+  white-space: nowrap;
 }
 .metric .lbl { color: var(--ink-faint); font-size: 0.8rem; margin-top: 2px; }
 .metric::after {
@@ -107,8 +108,8 @@
   <section class="metrics" aria-label="Fleet metrics">
     <div class="panel metric hot reveal"><div class="num" data-count="0" id="m-runs">0</div><div class="lbl">total runs</div></div>
     <div class="panel metric reveal" style="--stagger:60ms"><div class="num" id="m-cost">—</div><div class="lbl">total cost (USD)</div></div>
-    <div class="panel metric reveal" style="--stagger:120ms"><div class="num" data-count="0" id="m-prompt">0</div><div class="lbl">prompt tokens</div></div>
-    <div class="panel metric reveal" style="--stagger:180ms"><div class="num" data-count="0" id="m-completion">0</div><div class="lbl">completion tokens</div></div>
+    <div class="panel metric reveal" style="--stagger:120ms"><div class="num" id="m-prompt">—</div><div class="lbl">prompt tokens</div></div>
+    <div class="panel metric reveal" style="--stagger:180ms"><div class="num" id="m-completion">—</div><div class="lbl">completion tokens</div></div>
     <div class="panel metric reveal" style="--stagger:240ms"><div class="num"><span id="m-latency">0</span> ms</div><div class="lbl">avg latency</div></div>
   </section>
 
@@ -121,9 +122,9 @@
           <thead><tr><th>Model</th><th class="num">Prompt</th><th class="num">Completion</th><th class="num">Cost (USD)</th><th style="width:26%"></th></tr></thead>
           <tbody id="models-body"><tr><td colspan="5"><div class="skel" style="width:70%"></div></td></tr></tbody>
         </table>
-        <p class="empty" id="models-empty" style="display:none;padding:var(--s5)">
+        <div class="empty" id="models-empty" style="display:none;padding:var(--s5)">
           <h3>No model usage yet</h3> Run a task and this fills with real spend.
-        </p>
+        </div>
       </section>
 
       <section class="panel reveal" aria-label="Runs by status">
@@ -143,9 +144,9 @@
           <thead><tr><th>Trigger</th><th>Status</th><th class="num">Count</th></tr></thead>
           <tbody id="escalations-body"><tr><td colspan="3"><div class="skel" style="width:60%"></div></td></tr></tbody>
         </table>
-        <p class="empty" id="escalations-empty" style="display:none;padding:var(--s5)">
+        <div class="empty" id="escalations-empty" style="display:none;padding:var(--s5)">
           <h3>Nothing escalated</h3> The agents are handling everything alone.
-        </p>
+        </div>
       </section>
 
       <section class="panel reveal" aria-label="Where to go next">
@@ -202,7 +203,7 @@ async function loadStats() {
         <td class="num">${fmtUsd(s.cost_usd)}</td>
         <td><div class="model-bar"><i style="width:${share}%"></i></div></td>
       </tr>`;
-    }).join("") || `<tr><td colspan="5"><div class="skel" style="width:70%"></div></td></tr>`;
+    }).join("");
 
     // runs by status
     const statuses = Object.entries(stats.runs_by_status || {});
@@ -221,7 +222,7 @@ async function loadStats() {
           <td class="mono">${trigger}</td>
           <td><span class="badge ${statusClass(status)}">${status}</span></td>
           <td class="num">${count}</td>
-        </tr>`)).join("") || `<tr><td colspan="3"><div class="skel" style="width:60%"></div></td></tr>`;
+        </tr>`)).join("");
 
     $("last-refresh").textContent = "updated " + new Date().toLocaleTimeString();
   } catch (err) {

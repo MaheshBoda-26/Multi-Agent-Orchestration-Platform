@@ -55,7 +55,7 @@
 
   <section class="panel reveal">
     <div class="lookup">
-      <input id="user-id" placeholder="user id — press Enter to inspect" aria-label="User id">
+      <input id="user-id" value="console-user" placeholder="user id — press Enter to inspect" aria-label="User id">
       <button class="btn btn-primary" onclick="loadMemories()">Load</button>
       <button class="btn btn-danger" onclick="deleteMemories()">Delete all</button>
     </div>
@@ -103,16 +103,17 @@ async function deleteMemories() {
   }
 }
 
+const EMPTY_STATE = `<div class="empty" id="empty-state">
+      <h3>No memories loaded</h3>
+      <p>Enter a user id above to inspect the lessons Orchestra has learned for them.</p>
+    </div>`;
+
 function renderMemories(memories) {
   const container = document.getElementById("memories-container");
-  const emptyState = document.getElementById("empty-state");
   if (!memories.length) {
-    container.innerHTML = "";
-    container.appendChild(emptyState);
-    emptyState.style.display = "block";
+    container.innerHTML = EMPTY_STATE;
     return;
   }
-  emptyState.style.display = "none";
   container.innerHTML = memories.map((m) => `
     <article class="panel mem-card reveal in">
       <div class="content">${escapeHtml(m.content)}</div>
@@ -136,6 +137,8 @@ function escapeHtml(text) {
 document.getElementById("user-id").addEventListener("keydown", (event) => {
   if (event.key === "Enter") loadMemories();
 });
+
+loadMemories();
 </script>
 </body>
 </html>

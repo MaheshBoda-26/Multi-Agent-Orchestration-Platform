@@ -11,16 +11,23 @@ function consoleNav(active) {
     ["/memory/ui", "Memory"],
   ];
   return `
-    <nav class="console-nav">
+    <nav class="console-nav" aria-label="Global">
       <div class="shell">
-        <a class="brand" href="/">
-          <span class="spark" aria-hidden="true"></span> Orchestra
+        <a class="brand" href="/" aria-label="Orchestra home">
+          <span class="spark" aria-hidden="true">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <circle cx="8" cy="3" r="2" stroke="currentColor" stroke-width="1.4"/>
+              <circle cx="3" cy="12.5" r="2" stroke="currentColor" stroke-width="1.4"/>
+              <circle cx="13" cy="12.5" r="2" stroke="currentColor" stroke-width="1.4"/>
+              <path d="M8 5 4.2 11M8 5l3.8 6M5 12.5h6" stroke="currentColor" stroke-width="1.2"/>
+            </svg>
+          </span> Orchestra
         </a>
         <div class="nav-links">
           ${links.map(([href, label]) =>
             `<a href="${href}"${href === active ? ' aria-current="page"' : ""}>${label}</a>`
           ).join("")}
-          <a href="/#new-task" class="nav-cta">New task</a>
+          <a href="/#new-task" class="nav-cta">Run a task</a>
         </div>
       </div>
     </nav>`;
@@ -102,8 +109,8 @@ function toast(message) {
   const el = document.createElement("div");
   el.className = "toast";
   el.style.cssText =
-    "background:var(--panel-2);border:1px solid var(--ember-line);color:var(--ink);" +
-    "font-size:0.9rem;padding:10px 18px;border-radius:8px;box-shadow:0 8px 30px rgba(0,0,0,0.35);" +
+    "background:var(--surface);border:1px solid var(--hairline);color:var(--ink);" +
+    "font-size:14px;padding:10px 20px;border-radius:980px;box-shadow:2px 4px 12px rgba(0,0,0,0.1);" +
     "opacity:0;transform:translateY(8px);transition:opacity .25s,transform .25s;";
   el.textContent = message;
   host.appendChild(el);
