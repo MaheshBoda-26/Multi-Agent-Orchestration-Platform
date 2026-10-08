@@ -54,3 +54,14 @@ Append-only. One entry per correction or root cause, dated.
 - **A compose demo needs all four services** (postgres redis api worker);
   `POST /tasks` 500s without Redis and tasks queue forever without a worker.
   Verify pages AND the demo, not just page 200s.
+- **`celery_app.conf.broker_url = x` after import is a silent no-op.**
+  `worker/celery_app.py` passes the broker to the `Celery(...)` constructor, so
+  the key resolves through Celery's config chain where the constructor value
+  wins over a later attribute assignment — and `conf.broker_url` still *reads
+  back* the new value, so it looks like it worked. The four worker-spawning
+  tests all published to Redis /0 while their workers consumed /15: the task
+  sat in `queued` for 60 s and the failure surfaced as an unrelated-looking
+  "worker never died" or "status != completed". Set the env var *before*
+  importing the app instead (`tests/integration/helpers.py` does this), and
+  assert the worker logged task receipt so a broker mismatch can never again
+  hide behind a polling timeout.

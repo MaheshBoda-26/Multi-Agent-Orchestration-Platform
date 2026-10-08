@@ -12,11 +12,9 @@ import pytest
 from fastapi.testclient import TestClient
 
 from api.server import app
-from worker.celery_app import celery_app
 
 from .helpers import (
     DATABASE_URL,
-    TEST_BROKER_URL,
     cleanup_task,
     postgres_available,
     redis_available,

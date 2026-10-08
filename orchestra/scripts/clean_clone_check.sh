@@ -24,6 +24,16 @@ fail() { RESULTS+=("FAIL  $1  -- $2"); echo "FAIL  $1  -- $2"; FAILED=1; }
 
 step() { echo; echo "== $1"; }
 
+# Defined before the first call site: bash resolves functions at call time, so
+# calling this from a step before its definition aborted the run with
+# `print_results: command not found` instead of a FAIL line.
+print_results() {
+  echo; echo "================ clean-clone checklist ================"
+  for line in "${RESULTS[@]}"; do echo "$line"; done
+  echo "======================================================="
+  if [ "$FAILED" = "0" ]; then echo "RESULT: PASS"; else echo "RESULT: FAIL"; fi
+}
+
 cleanup() {
   step "teardown"
   ( cd "$CLONE_DIR/orchestra" 2>/dev/null || cd "$ORCHESTRA_SRC";
@@ -92,12 +102,6 @@ for path in "/explorer" "/dashboard" "/approvals/ui" "/memory/ui"; do
   fi
 done
 
-print_results() {
-  echo; echo "================ clean-clone checklist ================"
-  for line in "${RESULTS[@]}"; do echo "$line"; done
-  echo "======================================================="
-  if [ "$FAILED" = "0" ]; then echo "RESULT: PASS"; else echo "RESULT: FAIL"; fi
-}
 trap - EXIT
 cleanup
 print_results

@@ -1,6 +1,12 @@
 # Build-context exclusions: the image ships only what the app needs at runtime.
 .git
 .venv
+# `cp -R repo/ clone/` renames orchestra/.venv to .venvorchestra, which the
+# `.venv` glob does not match. When that stray venv reaches the build context,
+# uv export emits host-absolute file:// URLs that do not resolve inside the
+# image, the dependency layer comes out empty, and uvicorn dies with
+# `ModuleNotFoundError: No module named 'api'`.
+.venv*
 __pycache__
 *.py[cod]
 .pytest_cache

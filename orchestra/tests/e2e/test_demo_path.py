@@ -8,10 +8,10 @@ import pytest
 from fastapi.testclient import TestClient
 
 from api.server import app
-from worker.celery_app import celery_app
 
+# Imported before `worker.celery_app` on purpose: helpers points this process
+# at the isolated test broker DB, and the Celery app binds it at import time.
 from ..integration.helpers import (
-    TEST_BROKER_URL,
     postgres_available,
     redis_available,
     spawn_worker,
@@ -34,7 +34,6 @@ def client():
 async def test_demo_path_end_to_end(tmp_path, client):
     if not redis_available() or not await postgres_available():
         pytest.skip("Postgres and Redis are required for the e2e demo-path test")
-    celery_app.conf.broker_url = TEST_BROKER_URL
 
     worker = None
     try:
