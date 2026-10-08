@@ -39,7 +39,6 @@ async def _cleanup(task_id: uuid.UUID) -> None:
 def test_api_roundtrip_completes_task(tmp_path):
     if not redis_available() or not asyncio.run(postgres_available()):
         pytest.skip("Postgres and Redis are required for the roundtrip test")
-    celery_app.conf.broker_url = TEST_BROKER_URL
 
     worker_log = tmp_path / "worker.log"
     worker = spawn_worker({"FAKE_COMPLETION_LOG": str(tmp_path / "calls.log")}, worker_log)
@@ -65,6 +64,12 @@ def test_api_roundtrip_completes_task(tmp_path):
                     break
                 time.sleep(0.5)
 
+            # Every completed worker logs this line; without it a broker
+            # mismatch only shows up as a task stuck in `queued`.
+            worker_output = worker_log.read_text(errors="ignore")
+            assert " Task orchestra.run_task[" in worker_output, (
+                "no task was ever delivered to the worker:\n" + worker_output[-2000:]
+            )
             assert body["status"] == "completed", body
             assert body["result"]["final_response"]
 

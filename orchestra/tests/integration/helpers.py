@@ -19,6 +19,14 @@ REDIS_URL = os.getenv("CELERY_BROKER_URL", "redis://localhost:6379/0")
 TEST_BROKER_URL = os.getenv(
     "TEST_CELERY_BROKER_URL", REDIS_URL.rsplit("/", 1)[0] + "/15"
 )
+
+# Must run before `worker.celery_app` is imported anywhere: the app reads
+# CELERY_BROKER_URL once, at import time, and a later
+# `celery_app.conf.broker_url = ...` assignment is silently ignored (Celery
+# resolves that key through the config chain, where the constructor value
+# wins). Tests publish on the isolated DB, so the importing process has to
+# point at it too, or messages queue where no worker is listening.
+os.environ["CELERY_BROKER_URL"] = TEST_BROKER_URL
 DATABASE_URL = os.getenv(
     "DATABASE_URL", "postgresql://orchestra:orchestra@localhost:5432/orchestra"
 )

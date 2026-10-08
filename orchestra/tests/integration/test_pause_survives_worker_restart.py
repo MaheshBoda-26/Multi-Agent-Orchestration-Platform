@@ -12,12 +12,10 @@ import uuid
 import asyncpg
 import pytest
 
-from worker.celery_app import celery_app
 from worker.tasks import resume_task, run_task
 
 from .helpers import (
     DATABASE_URL,
-    TEST_BROKER_URL,
     cleanup_task,
     postgres_available,
     redis_available,
@@ -37,7 +35,6 @@ SUPERVISOR_CALL = "Orchestra Supervisor"
 async def test_pause_survives_worker_restart(tmp_path):
     if not redis_available() or not await postgres_available():
         pytest.skip("Postgres and Redis are required for the HITL durability test")
-    celery_app.conf.broker_url = TEST_BROKER_URL
 
     pool = await asyncpg.create_pool(DATABASE_URL, min_size=1, max_size=3)
     task_id = uuid.uuid4()
